@@ -1,0 +1,16 @@
+-- Real bug found while testing the deals pipeline: activity_events.actor_id
+-- had no DB-level default, unlike created_by on every other crm.* table.
+-- The deals_log_activity trigger always sets it explicitly, so
+-- deal.created/deal.stage_changed were never affected — but addNote()
+-- (lib/crm/actions.ts) relied on a DB default that didn't exist, silently
+-- inserting actor_id = null for every manually-added note. Nothing
+-- enforced the difference between "no one" and "whoever's signed in
+-- forgot to say so" — exactly the "writes should be attributed
+-- accurately" requirement this schema exists to satisfy.
+--
+-- default auth.uid() doesn't affect the trigger's explicit inserts (an
+-- explicit value always overrides a column default) — it only fills in
+-- the gap for direct inserts like addNote() that omit the column. A
+-- genuinely system-generated event still needs to pass actor_id: null
+-- explicitly to override the default, same as before.
+alter table crm.activity_events alter column actor_id set default auth.uid();

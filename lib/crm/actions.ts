@@ -181,3 +181,176 @@ export async function setPrimaryContact(organisationId: string, contactId: strin
   revalidatePath(`/organisations/${organisationId}`);
   return { ok: true };
 }
+
+export async function createDeal(input: {
+  organisationId: string;
+  primaryContactId?: string;
+  title: string;
+  stage: string;
+  package?: string;
+  monthlyValue?: string;
+  expectedStartDate?: string;
+  ownerUserId?: string;
+  source?: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireTeamMember();
+
+  const title = input.title.trim();
+  if (!title) return { ok: false, error: "Enter a deal title." };
+  if (!input.organisationId) return { ok: false, error: "Choose an organisation." };
+  if (!input.stage) return { ok: false, error: "Choose a stage." };
+
+  const monthlyValue = input.monthlyValue?.trim() ? Number(input.monthlyValue) : null;
+  if (monthlyValue !== null && (!Number.isFinite(monthlyValue) || monthlyValue < 0)) {
+    return { ok: false, error: "Enter a valid monthly value." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("deals")
+    .insert({
+      organisation_id: input.organisationId,
+      primary_contact_id: input.primaryContactId || null,
+      title,
+      stage: input.stage,
+      package: emptyToNull(input.package),
+      monthly_value: monthlyValue,
+      expected_start_date: input.expectedStartDate?.trim() || null,
+      owner_user_id: input.ownerUserId || null,
+      source: emptyToNull(input.source),
+    })
+    .select("id")
+    .single();
+  // deal.created is logged automatically by the deals_log_activity
+  // trigger (0007) — not duplicated here.
+
+  if (error) {
+    console.error("[createDeal]", error.message);
+    return { ok: false, error: "Couldn't create this deal. Try again." };
+  }
+
+  revalidatePath("/deals");
+  revalidatePath(`/organisations/${input.organisationId}`);
+  return { ok: true, data: { id: data.id } };
+}
+
+export async function updateDeal(
+  id: string,
+  input: {
+    title: string;
+    stage: string;
+    package?: string;
+    monthlyValue?: string;
+    expectedStartDate?: string;
+    ownerUserId?: string;
+    source?: string;
+    nextAction?: string;
+    lostReason?: string;
+  },
+): Promise<ActionResult> {
+  await requireTeamMember();
+
+  const title = input.title.trim();
+  if (!title) return { ok: false, error: "Enter a deal title." };
+  if (!input.stage) return { ok: false, error: "Choose a stage." };
+
+  const monthlyValue = input.monthlyValue?.trim() ? Number(input.monthlyValue) : null;
+  if (monthlyValue !== null && (!Number.isFinite(monthlyValue) || monthlyValue < 0)) {
+    return { ok: false, error: "Enter a valid monthly value." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("deals")
+    .update({
+      title,
+      stage: input.stage,
+      package: emptyToNull(input.package),
+      monthly_value: monthlyValue,
+      expected_start_date: input.expectedStartDate?.trim() || null,
+      owner_user_id: input.ownerUserId || null,
+      source: emptyToNull(input.source),
+      next_action: emptyToNull(input.nextAction),
+      lost_reason: emptyToNull(input.lostReason),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select("organisation_id")
+    .single();
+  // A stage change is logged automatically by the same trigger, whether
+  // it changed on this call or not (the trigger checks old vs new
+  // itself) — this action doesn't need to know or care which happened.
+
+  if (error) {
+    console.error("[updateDeal]", error.message);
+    return { ok: false, error: "Couldn't save these changes. Try again." };
+  }
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  if (data?.organisation_id) revalidatePath(`/organisations/${data.organisation_id}`);
+  return { ok: true };
+}
+
+// A lighter-weight sibling to updateDeal, for the pipeline board's
+// quick per-card stage select — doesn't require re-sending every other
+// field just to change one.
+export async function changeDealStage(id: string, stage: string): Promise<ActionResult> {
+  await requireTeamMember();
+  if (!stage) return { ok: false, error: "Choose a stage." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("deals")
+    .update({ stage, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("organisation_id")
+    .single();
+
+  if (error) {
+    console.error("[changeDealStage]", error.message);
+    return { ok: false, error: "Couldn't move this deal. Try again." };
+  }
+
+  revalidatePath("/deals");
+  revalidatePath(`/deals/${id}`);
+  if (data?.organisation_id) revalidatePath(`/organisations/${data.organisation_id}`);
+  return { ok: true };
+}
+
+export async function addNote(
+  entityType: "deal" | "organisation",
+  entityId: string,
+  text: string,
+  organisationId: string,
+): Promise<ActionResult> {
+  await requireTeamMember();
+
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, error: "Enter a note." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .schema("crm")
+    .from("activity_events")
+    .insert({
+      organisation_id: organisationId,
+      event_type: "note.added",
+      entity_type: entityType,
+      entity_id: entityId,
+      metadata: { text: trimmed },
+      // actor_id defaults to auth.uid() — see 0007's insert policy,
+      // which also rejects any attempt to claim a different actor.
+    });
+
+  if (error) {
+    console.error("[addNote]", error.message);
+    return { ok: false, error: "Couldn't add this note. Try again." };
+  }
+
+  if (entityType === "deal") revalidatePath(`/deals/${entityId}`);
+  return { ok: true };
+}
