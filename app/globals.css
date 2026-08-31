@@ -1,26 +1,64 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* ---------- BRAND TOKENS ----------
+   Copied exactly from metgiga.com (assets/css/styles.css) — same palette,
+   same two type families. This is a light-mode-only editorial system by
+   design (midnight/bone are deliberate art-directed choices per surface,
+   not a user dark-mode preference), so no prefers-color-scheme switching
+   here, unlike the default Next.js scaffold this replaced. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-midnight: #10151f;
+  --color-midnight-2: #182036;
+  --color-bone: #f2efe9;
+  --color-bone-2: #e8e2d6;
+  --color-copper: #b4693d;
+  --color-copper-soft: #d08f63;
+  --color-copper-text: #935632;
+  --color-copper-btn: #b56c40;
+  --color-indigo: #1b2740;
+  --color-grey-on-dark: #8b8f97;
+  --color-grey-on-light: #5c5650;
+  --color-error: #a83232;
+
+  --font-display: var(--font-display), serif;
+  --font-sans: var(--font-sans), sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: rgba(16, 21, 31, 0.12);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+/* Restrained, fast transitions everywhere by default — 180ms, no bounce.
+   Individual components override duration/property only when needed. */
+* {
+  transition-duration: 180ms;
+  transition-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Visible, on-brand focus ring — never suppressed. */
+:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
 }
