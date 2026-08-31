@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type TeamMember = {
@@ -19,7 +20,9 @@ export type TeamMember = {
 // to crm.team_members (or was deactivated), or because a genuine error
 // occurred. Fails closed in all three cases, deliberately: never throws
 // out to a page that assumes a member exists.
-export async function getActiveTeamMember(): Promise<TeamMember | null> {
+// Wrapped in React's cache() so the layout's auth gate and a page's own
+// call within the same request share one DB round trip instead of two.
+export const getActiveTeamMember = cache(async (): Promise<TeamMember | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -35,13 +38,13 @@ export async function getActiveTeamMember(): Promise<TeamMember | null> {
     .maybeSingle();
 
   if (error) {
-    // Expected until the `crm` schema is exposed under Project Settings
-    // -> API -> Exposed schemas (PostgREST returns a 404/PGRST error for
-    // an unexposed schema, not a permissions error) — logged, not thrown,
-    // so a misconfiguration reads as "not authorised" rather than a 500.
+    // Logged, not thrown — a real misconfiguration (or a future bug in
+    // the crm.* RLS policies, as already happened once with an
+    // infinite-recursion policy) should read as "not authorised" to the
+    // page, not surface a 500 to an already-authenticated person.
     console.error("[getActiveTeamMember]", error.message);
     return null;
   }
 
   return data;
-}
+});
