@@ -32,9 +32,18 @@ export default function ForgotPasswordPage() {
     });
     setLoading(false);
 
-    // Same success state regardless of whether the email matched an
-    // account — account-enumeration hygiene, distinct from the sign-in
-    // error on /login (which safely reuses Supabase's own message).
+    // Rate-limit (429/over_email_send_rate_limit) is safe to disclose
+    // directly — it fires per-email regardless of whether the account
+    // exists, so it doesn't leak anything account-enumeration hygiene
+    // needs to hide. Found this the hard way: without this check, a
+    // legitimately-throttled retry silently showed the same "check your
+    // email" success state as a real send, with nothing to explain why
+    // no second email ever arrives. Every other outcome keeps the
+    // uniform success state, unchanged.
+    if (resetError?.code === "over_email_send_rate_limit") {
+      setError("You've already requested this recently. Check your email, or wait a moment and try again.");
+      return;
+    }
     if (resetError) {
       console.error("[forgot-password]", resetError);
     }
