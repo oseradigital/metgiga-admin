@@ -42,6 +42,13 @@ export type OnboardingRecord = {
   primary_contact_name: string | null;
   primary_contact_email: string | null;
   primary_contact_phone: string | null;
+  // Set only after the client actually receives and enters a one-time
+  // code sent to this address (metgiga-portal's
+  // lib/onboarding/email-verification.ts) — not merely that the domain
+  // has mail servers. Resets to false the moment the client edits the
+  // email, so this is only ever true for the CURRENT
+  // primary_contact_email value, never a stale one.
+  contact_email_verified: boolean;
   compliance_contact: string | null;
   practitioners: Practitioner[];
   decision_maker: string | null;

@@ -98,6 +98,7 @@ export function OnboardingPanel({ organisationId, record }: { organisationId: st
       <Section title="Business & team">
         <Field label="Primary contact" value={formatText(record.primary_contact_name)} />
         <Field label="Contact email" value={formatText(record.primary_contact_email)} />
+        <Field label="Email verified" value={formatBoolean(record.contact_email_verified)} />
         <Field label="Contact phone" value={formatText(record.primary_contact_phone)} />
         <Field label="Contact's role" value={formatText(record.contact_role)} />
         <Field label="Compliance contact" value={formatText(record.compliance_contact)} />

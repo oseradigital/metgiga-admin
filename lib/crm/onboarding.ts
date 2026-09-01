@@ -8,7 +8,7 @@ import type { OnboardingRecord, UnlinkedOnboardingRecord } from "@/lib/crm/onboa
 const ONBOARDING_COLUMNS = `
   id, organisation_id, auth_user_id, access_token, created_at, updated_at, revoked_at, expires_at,
   business_name, legal_company_name, website, locations, contact_role, instagram_handle, tiktok_handle, other_social_channels,
-  primary_contact_name, primary_contact_email, primary_contact_phone, compliance_contact, practitioners,
+  primary_contact_name, primary_contact_email, primary_contact_phone, contact_email_verified, compliance_contact, practitioners,
   decision_maker, enquiries_handled_by, content_approver, advertising_approver, urgent_contact, opening_hours,
   consultation_model, booking_method,
   current_channels, monthly_ad_spend_range, monthly_revenue_range, current_agency_or_freelancer,
