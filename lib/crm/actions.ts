@@ -354,3 +354,65 @@ export async function addNote(
   if (entityType === "deal") revalidatePath(`/deals/${entityId}`);
   return { ok: true };
 }
+
+export async function createTask(input: {
+  title: string;
+  description?: string;
+  dueAt?: string;
+  priority?: string;
+  assignedTo?: string;
+  organisationId?: string;
+  dealId?: string;
+}): Promise<ActionResult<{ id: string }>> {
+  await requireTeamMember();
+
+  const title = input.title.trim();
+  if (!title) return { ok: false, error: "Enter a task title." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("tasks")
+    .insert({
+      title,
+      description: emptyToNull(input.description),
+      due_at: input.dueAt?.trim() || null,
+      priority: input.priority || "normal",
+      assigned_to: input.assignedTo || null,
+      organisation_id: input.organisationId || null,
+      deal_id: input.dealId || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[createTask]", error.message);
+    return { ok: false, error: "Couldn't create this task. Try again." };
+  }
+
+  revalidatePath("/tasks");
+  if (input.dealId) revalidatePath(`/deals/${input.dealId}`);
+  return { ok: true, data: { id: data.id } };
+}
+
+export async function setTaskStatus(id: string, status: "open" | "done"): Promise<ActionResult> {
+  await requireTeamMember();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("tasks")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("deal_id")
+    .single();
+
+  if (error) {
+    console.error("[setTaskStatus]", error.message);
+    return { ok: false, error: "Couldn't update this task. Try again." };
+  }
+
+  revalidatePath("/tasks");
+  if (data?.deal_id) revalidatePath(`/deals/${data.deal_id}`);
+  return { ok: true };
+}

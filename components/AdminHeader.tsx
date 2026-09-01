@@ -22,6 +22,9 @@ export function AdminHeader({ member }: { member: TeamMember }) {
             <Link href="/deals" className="text-grey-on-light hover:text-midnight transition-colors">
               Deals
             </Link>
+            <Link href="/tasks" className="text-grey-on-light hover:text-midnight transition-colors">
+              Tasks
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">

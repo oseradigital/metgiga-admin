@@ -3,18 +3,21 @@ import Link from "next/link";
 import { getDeal, listDealStages } from "@/lib/crm/deals";
 import { listTeamMembers } from "@/lib/crm/team-members";
 import { listActivity } from "@/lib/crm/activity";
+import { listTasksForDeal } from "@/lib/crm/tasks";
 import { DealEditor } from "@/components/crm/DealEditor";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import { DealTasksPanel } from "@/components/crm/DealTasksPanel";
 
 export default async function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const deal = await getDeal(id);
   if (!deal) notFound();
 
-  const [stages, teamMembers, activity] = await Promise.all([
+  const [stages, teamMembers, activity, tasks] = await Promise.all([
     listDealStages(),
     listTeamMembers(),
     listActivity("deal", id),
+    listTasksForDeal(id),
   ]);
 
   return (
@@ -30,6 +33,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       </Link>
 
       <DealEditor deal={deal} stages={stages} teamMembers={teamMembers} />
+      <DealTasksPanel dealId={deal.id} organisationId={deal.organisation_id} tasks={tasks} teamMembers={teamMembers} />
       <ActivityTimeline
         entityType="deal"
         entityId={deal.id}
