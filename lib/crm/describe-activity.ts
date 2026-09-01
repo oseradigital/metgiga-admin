@@ -20,6 +20,14 @@ export function describeActivityEvent(
     }
     case "note.added":
       return String(metadata.text ?? "");
+    case "organisation.created":
+      return `${actor} created this organisation`;
+    case "onboarding.completed":
+      // actor is always null here (crm.log_onboarding_completed logs it
+      // as system-generated, not attributed to whichever session's
+      // update happened to fire the trigger — very often the client's
+      // own), so this deliberately doesn't use `actor`.
+      return "Onboarding completed";
     default:
       return `${actor} — ${eventType}`;
   }

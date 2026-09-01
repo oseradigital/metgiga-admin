@@ -8,6 +8,13 @@ import { createClient } from "@/lib/supabase/server";
 // (crm.tasks, crm.activity_events), nothing inferred about priority.
 export const NEEDS_ATTENTION_DAYS = 14;
 
+// A brand-new organisation shouldn't show up in Needs attention just
+// because no one has added a next action in the first hour it exists —
+// that's normal, not neglect. Stated threshold, same reasoning as
+// NEEDS_ATTENTION_DAYS: a real number the team can see and change, not
+// a vague "recently created" heuristic.
+export const NEW_ORGANISATION_GRACE_HOURS = 48;
+
 export type PipelineStageSummary = {
   id: string;
   label: string;
@@ -52,6 +59,23 @@ export async function getPipelineByStage(): Promise<PipelineStageSummary[]> {
   }));
 }
 
+// Sum of monthly_value across deals in the deal_won stage — "currently
+// active recurring revenue", not a projection. Re-introduced on the
+// Overview page per the founder-supplied sidebar mockup, which
+// explicitly asked for this tile even though the earlier Overview spec
+// said "no vanity metrics" — a deliberate, confirmed override of that
+// earlier instruction, not a silent reversal.
+export async function getActiveMRR(): Promise<number> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.schema("crm").from("deals").select("monthly_value").eq("stage", "deal_won");
+
+  if (error) {
+    console.error("[getActiveMRR]", error.message);
+    return 0;
+  }
+  return data.reduce((sum, d) => sum + (d.monthly_value ?? 0), 0);
+}
+
 export type MyTaskCounts = { dueToday: number; overdue: number };
 
 // "My" = assigned_to the current signed-in member — literal counts of
@@ -84,6 +108,49 @@ export async function getMyTaskCounts(memberId: string): Promise<MyTaskCounts> {
   if (overdueRes.error) console.error("[getMyTaskCounts] overdue", overdueRes.error.message);
 
   return { dueToday: dueTodayRes.count ?? 0, overdue: overdueRes.count ?? 0 };
+}
+
+export type MyTaskItem = {
+  id: string;
+  title: string;
+  dueAt: string | null;
+  organisationId: string | null;
+  organisationName: string | null;
+};
+
+// The actual due-today/overdue tasks behind getMyTaskCounts' numbers —
+// "My tasks" showing two bare counts with nothing to click through to
+// wasn't actionable. Same scope (assigned_to = memberId, status open,
+// due today or earlier), ordered soonest-overdue first, capped at 5 —
+// this is a glance section, not the full list (that's /tasks).
+export async function getMyOpenTasks(memberId: string, limit = 5): Promise<MyTaskItem[]> {
+  const supabase = await createClient();
+  const now = new Date();
+  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("tasks")
+    .select("id, title, due_at, organisation_id, organisations!organisation_id(name)")
+    .eq("assigned_to", memberId)
+    .eq("status", "open")
+    .lt("due_at", startOfTomorrow.toISOString())
+    .order("due_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error("[getMyOpenTasks]", error.message);
+    return [];
+  }
+
+  return data.map((row) => ({
+    id: row.id,
+    title: row.title,
+    dueAt: row.due_at,
+    organisationId: row.organisation_id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    organisationName: (row.organisations as any)?.name ?? null,
+  }));
 }
 
 export type RecentActivityItem = {

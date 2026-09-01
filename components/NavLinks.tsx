@@ -15,31 +15,38 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// Split out from AdminHeader (a server component) specifically because
+// Split out from AdminSidebar (a server component) specifically because
 // knowing "which page is this" needs usePathname(), which needs a
-// client boundary — the header itself stays server-rendered.
+// client boundary — the sidebar itself stays server-rendered.
+//
+// Vertical rows with a leading dot for the active item, per the
+// approved mockup — replaces the previous horizontal copper-underline
+// treatment (that was the top-header design this sidebar supersedes).
 export function NavLinks() {
   const pathname = usePathname();
 
   return (
-    <nav className="hidden sm:flex items-center gap-6 text-sm">
+    <ul className="space-y-0.5">
       {LINKS.map((link) => {
         const active = isActive(pathname, link.href);
         return (
-          <Link
-            key={link.href}
-            href={link.href}
-            aria-current={active ? "page" : undefined}
-            className={`pb-0.5 border-b-2 transition-colors ${
-              active
-                ? "border-copper text-midnight font-medium"
-                : "border-transparent text-grey-on-light hover:text-midnight"
-            }`}
-          >
-            {link.label}
-          </Link>
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              aria-current={active ? "page" : undefined}
+              className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
+                active ? "text-bone font-medium bg-bone/[0.06]" : "text-grey-on-dark hover:text-bone hover:bg-bone/[0.04]"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`size-1.5 rounded-full shrink-0 ${active ? "bg-copper" : "bg-transparent"}`}
+              />
+              {link.label}
+            </Link>
+          </li>
         );
       })}
-    </nav>
+    </ul>
   );
 }

@@ -21,6 +21,20 @@ export function testAdminClient() {
   return createClient(url, key);
 }
 
+// A minimal browser-equivalent client (anon key, no session persistence)
+// for signing in as a specific real user and exercising RLS directly —
+// as opposed to testAdminClient(), which is the service role and
+// bypasses RLS entirely. Shared here rather than redefined per spec
+// file (was previously local to auth.spec.ts).
+export function anonClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY must be set to run the E2E suite.");
+  }
+  return createClient(url, anonKey, { auth: { persistSession: false } });
+}
+
 export type TeamMemberRole = "owner" | "sales" | "account_manager" | "production";
 
 // A REAL, throwaway auth account with a real password this test suite
@@ -119,12 +133,16 @@ export async function loginAs(page: Page, email: string, password: string) {
 // in this build: the insert actually failed, not assumed to work.
 // Pass a real throwaway team member's id, not one of the founders' —
 // fixture data shouldn't get attributed to a real person.
-export async function createTestOrganisation(name: string, createdBy: string): Promise<string> {
+export async function createTestOrganisation(
+  name: string,
+  createdBy: string,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
   const admin = testAdminClient();
   const { data, error } = await admin
     .schema("crm")
     .from("organisations")
-    .insert({ name, created_by: createdBy })
+    .insert({ name, created_by: createdBy, ...overrides })
     .select("id")
     .single();
   if (error || !data) throw new Error(`Could not create test organisation: ${error?.message}`);
@@ -146,6 +164,33 @@ export async function deleteOrganisation(id: string) {
     .eq("id", id);
   if (error) throw new Error(`Cleanup failed: could not delete test organisation ${id}: ${error.message}`);
   if (count !== 1) throw new Error(`Cleanup failed: expected to delete 1 organisation (${id}), deleted ${count}.`);
+}
+
+// onboarding_records lives in `public` (the Client Portal's schema), not
+// crm — no .schema() call, same as lib/crm/onboarding.ts's app-side
+// reads. access_token stands in for a real invite token; nothing here
+// exercises the actual invite-generation code path, only the
+// organisation-link/RLS/trigger behaviour built for the final alignment
+// pass (migration 0014/0007).
+export async function createTestOnboardingRecord(overrides: Record<string, unknown> = {}): Promise<{ id: string; accessToken: string }> {
+  const admin = testAdminClient();
+  const accessToken = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const { data, error } = await admin
+    .from("onboarding_records")
+    .insert({ access_token: accessToken, business_name: `E2E Onboarding ${Date.now()}`, ...overrides })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`Could not create test onboarding record: ${error?.message}`);
+  return { id: data.id, accessToken };
+}
+
+export async function deleteOnboardingRecord(id: string) {
+  const { error, count } = await testAdminClient()
+    .from("onboarding_records")
+    .delete({ count: "exact" })
+    .eq("id", id);
+  if (error) throw new Error(`Cleanup failed: could not delete test onboarding record ${id}: ${error.message}`);
+  if (count !== 1) throw new Error(`Cleanup failed: expected to delete 1 onboarding record (${id}), deleted ${count}.`);
 }
 
 export async function createTestDeal(

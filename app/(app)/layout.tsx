@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getActiveTeamMember } from "@/lib/supabase/team";
-import { AdminHeader } from "@/components/AdminHeader";
+import { AdminSidebar } from "@/components/AdminSidebar";
 
 // The one place every authenticated route's access check lives — a page
 // under here never needs to repeat the "am I an active team member"
@@ -12,9 +12,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!member) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-bone-2">
-      <AdminHeader member={member} />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">{children}</main>
+    <div className="min-h-screen bg-bone-2 sm:flex">
+      <AdminSidebar member={member} />
+      <main className="flex-1 min-w-0 max-w-6xl mx-auto px-4 sm:px-8 py-8">{children}</main>
     </div>
   );
 }

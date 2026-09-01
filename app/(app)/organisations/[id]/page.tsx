@@ -7,10 +7,12 @@ import { listTasksForOrganisation } from "@/lib/crm/tasks";
 import { listActivityForOrganisation } from "@/lib/crm/activity";
 import { listDealStages } from "@/lib/crm/deals";
 import { listTeamMembers } from "@/lib/crm/team-members";
+import { getOnboardingRecordForOrganisation } from "@/lib/crm/onboarding";
 import { OrganisationEditor } from "@/components/crm/OrganisationEditor";
 import { ContactsPanel } from "@/components/crm/ContactsPanel";
 import { TasksPanel } from "@/components/crm/TasksPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import { OnboardingPanel } from "@/components/crm/OnboardingPanel";
 import { OrganisationTabs, type Tab } from "@/components/crm/OrganisationTabs";
 import { OrganisationMenu } from "@/components/crm/OrganisationMenu";
 import { Badge } from "@/components/ui/Badge";
@@ -30,6 +32,7 @@ const TAB_PARAM: Record<string, Tab> = {
   contacts: "Contacts",
   deals: "Deals",
   tasks: "Tasks",
+  onboarding: "Onboarding",
   activity: "Activity",
 };
 
@@ -50,13 +53,14 @@ export default async function OrganisationDetailPage({
   // "you can't see it" to the caller).
   if (!organisation) notFound();
 
-  const [contacts, deals, tasks, activity, stages, teamMembers] = await Promise.all([
+  const [contacts, deals, tasks, activity, stages, teamMembers, onboardingRecord] = await Promise.all([
     listContacts(id),
     listDealsForOrganisation(id),
     listTasksForOrganisation(id),
     listActivityForOrganisation(id),
     listDealStages(),
     listTeamMembers(),
+    getOnboardingRecordForOrganisation(id),
   ]);
 
   const primaryContact = contacts.find((c) => c.is_primary) ?? contacts[0];
@@ -132,6 +136,7 @@ export default async function OrganisationDetailPage({
           Tasks: (
             <TasksPanel organisationId={organisation.id} tasks={tasks} teamMembers={teamMembers} showDeal />
           ),
+          Onboarding: <OnboardingPanel organisationId={organisation.id} record={onboardingRecord} />,
           Activity: (
             <ActivityTimeline
               entityType="organisation"

@@ -1,21 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
 import {
   createThrowawayTeamMember,
   createThrowawayNonMember,
   deleteAuthUser,
   deleteOrganisation,
   loginAs,
+  anonClient,
 } from "./helpers";
-
-// A minimal browser-equivalent client for the RLS test below —
-// deliberately not lib/supabase/client.ts, which is a "use client" React
-// module built for the app, not a plain Node/test context.
-function anonClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    auth: { persistSession: false },
-  });
-}
 
 test.describe("Login", () => {
   test("renders and validates without a real account", async ({ page }) => {

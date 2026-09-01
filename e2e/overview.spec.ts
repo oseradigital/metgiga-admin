@@ -21,32 +21,79 @@ test.describe("Overview page", () => {
       // /overview exists somewhere.
       await expect(page).toHaveURL(/\/$/);
       await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
-      await expect(page.getByText("Needs attention")).toBeVisible();
-      await expect(page.getByText("Pipeline")).toBeVisible();
-      await expect(page.getByText("My tasks")).toBeVisible();
-      await expect(page.getByText("Recent activity")).toBeVisible();
+      // getByText, not getByRole/heading, here specifically: the empty
+      // state's own copy ("Nothing needs attention right now.") contains
+      // "needs attention" as a case-insensitive substring, so a bare
+      // getByText("Needs attention") is ambiguous whenever nothing
+      // currently qualifies — a real, previously-latent bug this test
+      // hit once the grace-period change (final alignment pass) started
+      // legitimately excluding organisations that used to always show.
+      await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
+      // heading, not getByText, for the same reason — the new "Potential
+      // pipeline" stat tile (final alignment pass) contains "Pipeline" as
+      // a substring, which a bare getByText("Pipeline") would also match.
+      await expect(page.getByRole("heading", { name: "Pipeline", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "My tasks" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Recent activity" })).toBeVisible();
     } finally {
       if (memberId) await deleteAuthUser(memberId);
     }
   });
 
-  test("an organisation with no next action and no activity appears in Needs attention with the stated reason", async ({ page }) => {
+  test("an organisation with no next action and no activity appears in Needs attention with the stated reason and a direct action", async ({ page }) => {
     let memberId: string | undefined;
     let orgId: string | undefined;
-    const orgName = `E2E Needs Attention ${Date.now()}`;
+    // Deliberately NOT named "... Needs Attention ..." — the final
+    // alignment pass's organisation.created trigger now logs a Recent
+    // Activity entry the moment this org is created, and that entry
+    // mentions the org by name. A name containing the section heading's
+    // own text made `section.filter({hasText: "Needs attention"})`
+    // ambiguously also match the Recent Activity section once that
+    // entry existed — a real cross-section collision, not a flake.
+    const orgName = `E2E Attention Required ${Date.now()}`;
 
     try {
-      const member = await createThrowawayTeamMember("E2E Needs Attention");
+      const member = await createThrowawayTeamMember("E2E Attention Required");
       memberId = member.id;
+      // Backdated past NEW_ORGANISATION_GRACE_HOURS (48h) — a
+      // just-created organisation is deliberately excluded from Needs
+      // attention (final alignment spec: don't flag brand-new orgs), so
+      // this test has to simulate an org old enough to actually qualify.
+      orgId = await createTestOrganisation(orgName, member.id, {
+        created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+      });
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/");
+
+      const needsAttention = page.locator("section", { hasText: "Needs attention" });
+      const row = needsAttention.getByRole("link", { name: orgName, exact: true });
+      await expect(row).toBeVisible();
+      const rowContainer = needsAttention.locator("li", { hasText: orgName });
+      await expect(rowContainer).toContainText("No next action");
+      await expect(rowContainer.getByRole("link", { name: "Add task" })).toBeVisible();
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+
+  test("a brand-new organisation does not appear in Needs attention, even with no next action or activity", async ({ page }) => {
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Grace Period ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Grace Period");
+      memberId = member.id;
+      // No created_at override — a genuinely brand-new organisation.
       orgId = await createTestOrganisation(orgName, member.id);
 
       await loginAs(page, member.email, member.password);
       await page.goto("/");
 
-      const row = page.getByRole("link", { name: new RegExp(orgName) });
-      await expect(row).toBeVisible();
-      await expect(row).toContainText("No next action");
-      await expect(row).toContainText("No activity yet");
+      const needsAttention = page.locator("section", { hasText: "Needs attention" });
+      await expect(needsAttention.getByRole("link", { name: orgName, exact: true })).toHaveCount(0);
     } finally {
       if (orgId) await deleteOrganisation(orgId);
       if (memberId) await deleteAuthUser(memberId);
@@ -119,21 +166,27 @@ test.describe("Overview page", () => {
     }
   });
 
-  test("My tasks reflects a due-today task assigned to the signed-in member", async ({ page }) => {
+  test("My tasks reflects a due-today task assigned to the signed-in member, as an actual list item with a link", async ({ page }) => {
     let memberId: string | undefined;
     let orgId: string | undefined;
     let taskId: string | undefined;
+    // Not "... My Tasks ..." — same section-name collision risk fixed
+    // above for the Needs attention test, latent here too since
+    // organisation.created now puts this org's name in Recent activity
+    // immediately, which section.filter({hasText: "My tasks"}) could
+    // then also match.
+    const orgName = `E2E Due Today Org ${Date.now()}`;
 
     try {
-      const member = await createThrowawayTeamMember("E2E My Tasks");
+      const member = await createThrowawayTeamMember("E2E Due Today");
       memberId = member.id;
-      orgId = await createTestOrganisation(`E2E My Tasks Org ${Date.now()}`, member.id);
+      orgId = await createTestOrganisation(orgName, member.id);
       const { data: task } = await testAdminClient()
         .schema("crm")
         .from("tasks")
         .insert({
           organisation_id: orgId,
-          title: "E2E due today",
+          title: "E2E due today task",
           due_at: new Date().toISOString(),
           assigned_to: member.id,
           created_by: member.id,
@@ -145,13 +198,14 @@ test.describe("Overview page", () => {
       await loginAs(page, member.email, member.password);
       await page.goto("/");
 
-      // "Due today" is the first stat tile in My tasks — scoped via the
-      // section rather than a bare number, since "1" alone isn't a safe
-      // locator.
+      // Not just a count — the final alignment pass replaced the two
+      // bare number tiles with an actual, clickable list of what's due.
       const myTasks = page.locator("section", { hasText: "My tasks" });
-      await expect(myTasks.getByText("Due today")).toBeVisible();
-      const dueTodayCount = await myTasks.locator("p.font-display").first().textContent();
-      expect(Number(dueTodayCount)).toBeGreaterThanOrEqual(1);
+      await expect(myTasks.getByText(/\d+ due today/)).toBeVisible();
+      const taskLink = myTasks.getByRole("link", { name: /E2E due today task/ });
+      await expect(taskLink).toBeVisible();
+      await expect(taskLink).toContainText(orgName);
+      await expect(taskLink).toHaveAttribute("href", `/organisations/${orgId}?tab=tasks`);
     } finally {
       if (taskId) await testAdminClient().schema("crm").from("tasks").delete().eq("id", taskId);
       if (orgId) await deleteOrganisation(orgId);
