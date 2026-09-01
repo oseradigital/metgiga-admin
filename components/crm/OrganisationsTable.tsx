@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ORGANISATION_STATUSES, type OrganisationListItem, type OrganisationStatus } from "@/lib/crm/organisation-types";
+import { createTask } from "@/lib/crm/actions";
+import { formatMoney, formatDate, formatDateTime, formatRelativeTime } from "@/lib/format";
 import { Badge } from "@/components/ui/Badge";
 
 const STATUS_TONE: Record<OrganisationStatus, "neutral" | "copper" | "success"> = {
@@ -26,11 +29,6 @@ const FILTERS: { label: string; value: "all" | OrganisationStatus }[] = [
   { label: "Lost", value: "lost" },
 ];
 
-function formatMoney(value: number | null, currency: string) {
-  if (value === null) return null;
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-}
-
 function matchesSearch(org: OrganisationListItem, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -38,6 +36,86 @@ function matchesSearch(org: OrganisationListItem, query: string) {
     org.name.toLowerCase().includes(q) ||
     (org.primaryContactName?.toLowerCase().includes(q) ?? false) ||
     (org.primaryContactEmail?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+// The deal's package (e.g. "Full Funnel") is the name worth showing
+// next to its stage — falls back to the deal's own title only if no
+// package was set, rather than showing both.
+function dealLabel(deal: NonNullable<OrganisationListItem["activeDeal"]>) {
+  return `${deal.package || deal.title} · ${deal.stageLabel}`;
+}
+
+// Relative-time text with the exact timestamp on hover — a plain
+// title attribute, not a custom tooltip component; native, accessible,
+// and exactly "available on hover" as asked.
+function LastActivity({ iso }: { iso: string | null }) {
+  if (!iso) return <span className="text-grey-on-light/60">—</span>;
+  return (
+    <span title={formatDateTime(iso)} className="text-grey-on-light">
+      {formatRelativeTime(iso)}
+    </span>
+  );
+}
+
+// Shows the next open task's title (+ due date if it has one), or —
+// when there isn't one — a muted state with an inline one-field way to
+// add one right there, without leaving the list. Not inside a <Link>
+// (only the organisation-name cell is), so no click-propagation concerns.
+function NextActionCell({ org }: { org: OrganisationListItem }) {
+  const router = useRouter();
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (org.nextAction) {
+    return (
+      <span className="text-grey-on-light">
+        {org.nextAction.title}
+        {org.nextAction.dueAt ? <span className="text-grey-on-light/70"> · {formatDate(org.nextAction.dueAt)}</span> : null}
+      </span>
+    );
+  }
+
+  if (!adding) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAdding(true)}
+        className="text-grey-on-light/60 hover:text-copper-text transition-colors text-left"
+      >
+        No next action <span className="text-copper-text">+ Add</span>
+      </button>
+    );
+  }
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    setSaving(true);
+    const result = await createTask({ title, organisationId: org.id });
+    setSaving(false);
+    if (result.ok) {
+      setTitle("");
+      setAdding(false);
+      router.refresh();
+    }
+  }
+
+  return (
+    <form onSubmit={handleAdd} className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => {
+          if (!title.trim()) setAdding(false);
+        }}
+        placeholder="Task title, Enter to add"
+        className="h-7 px-2 rounded-md border border-midnight/15 bg-bone text-xs w-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-copper/40 focus-visible:border-copper"
+        disabled={saving}
+      />
+    </form>
   );
 }
 
@@ -110,14 +188,6 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
       {visible.length === 0 ? (
         <div className="bg-bone rounded-xl border border-midnight/10 py-12 px-6 text-center">
           <p className="text-sm text-grey-on-light">
-            {/* Real bug found via Playwright, not just reviewed: this used
-                to key off whether the search box had text, not whether the
-                search itself found nothing. That meant a name that matched
-                but got excluded by the active status filter still showed
-                "No organisations match your search" — wrong message, since
-                the search actually worked and the status filter was the
-                actual reason. Keying off searched.length (pre-status-filter)
-                fixes it. */}
             {query.trim() && searched.length === 0
               ? "No organisations match your search."
               : "No organisations in this status."}
@@ -134,7 +204,9 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
                   <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium">Primary contact</th>
                   <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium">Status</th>
                   <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium">Active deal</th>
-                  <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium text-right">MRR</th>
+                  <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium">Next action</th>
+                  <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium">Last activity</th>
+                  <th className="px-4 py-2 text-xs uppercase tracking-wide text-grey-on-light font-medium text-right">Value</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,8 +221,12 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
                     <td className="px-4 py-2.5">
                       <Badge tone={STATUS_TONE[org.status]}>{org.status}</Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-grey-on-light">
-                      {org.activeDeal ? `${org.activeDeal.title} · ${org.activeDeal.stageLabel}` : "—"}
+                    <td className="px-4 py-2.5 text-grey-on-light">{org.activeDeal ? dealLabel(org.activeDeal) : "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">
+                      <NextActionCell org={org} />
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">
+                      <LastActivity iso={org.lastActivityAt} />
                     </td>
                     <td className="px-4 py-2.5 text-right text-midnight tabular-nums">
                       {org.activeDeal ? formatMoney(org.activeDeal.monthlyValue, org.activeDeal.currency) ?? "—" : "—"}
@@ -176,12 +252,18 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
                   <p className="text-xs text-grey-on-light truncate">{org.primaryContactName || "No contact yet"}</p>
                   {org.activeDeal ? (
                     <p className="text-xs text-grey-on-light truncate mt-0.5">
-                      {org.activeDeal.title} · {org.activeDeal.stageLabel}
+                      {dealLabel(org.activeDeal)}
                       {formatMoney(org.activeDeal.monthlyValue, org.activeDeal.currency)
                         ? ` · ${formatMoney(org.activeDeal.monthlyValue, org.activeDeal.currency)}`
                         : ""}
                     </p>
                   ) : null}
+                  <div className="flex items-center justify-between gap-2 mt-1.5 text-xs text-grey-on-light/80">
+                    <span className="truncate">
+                      {org.nextAction ? `Next: ${org.nextAction.title}` : "No next action"}
+                    </span>
+                    {org.lastActivityAt ? <span title={formatDateTime(org.lastActivityAt)}>{formatRelativeTime(org.lastActivityAt)}</span> : null}
+                  </div>
                 </Link>
               </li>
             ))}

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 export type OrgDealSummary = {
   id: string;
   title: string;
+  package: string | null;
   stage: string;
   stage_label: string;
   monthly_value: number | null;
@@ -15,7 +16,7 @@ export async function listDealsForOrganisation(organisationId: string): Promise<
   const { data, error } = await supabase
     .schema("crm")
     .from("deals")
-    .select("id, title, stage, monthly_value, currency, deal_stages!stage(label)")
+    .select("id, title, package, stage, monthly_value, currency, deal_stages!stage(label)")
     .eq("organisation_id", organisationId)
     .order("created_at", { ascending: false });
 
@@ -27,6 +28,7 @@ export async function listDealsForOrganisation(organisationId: string): Promise<
   return data.map((row) => ({
     id: row.id,
     title: row.title,
+    package: row.package,
     stage: row.stage,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stage_label: (row.deal_stages as any)?.label ?? row.stage,

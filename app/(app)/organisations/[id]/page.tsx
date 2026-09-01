@@ -13,6 +13,7 @@ import { TasksPanel } from "@/components/crm/TasksPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { OrganisationTabs } from "@/components/crm/OrganisationTabs";
 import { Badge } from "@/components/ui/Badge";
+import { formatMoney } from "@/lib/format";
 
 const STATUS_TONE: Record<string, "neutral" | "copper" | "success"> = {
   prospect: "neutral",
@@ -22,11 +23,6 @@ const STATUS_TONE: Record<string, "neutral" | "copper" | "success"> = {
   cancelled: "neutral",
   lost: "neutral",
 };
-
-function formatMoney(value: number | null, currency: string) {
-  if (value === null) return null;
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-}
 
 export default async function OrganisationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -50,7 +46,13 @@ export default async function OrganisationDetailPage({ params }: { params: Promi
   const primaryContact = contacts.find((c) => c.is_primary) ?? contacts[0];
   const primaryContactName = primaryContact ? [primaryContact.first_name, primaryContact.last_name].filter(Boolean).join(" ") : null;
   const activeDeal = deals[0]
-    ? { title: deals[0].title, stageLabel: deals[0].stage_label, monthlyValue: deals[0].monthly_value, currency: deals[0].currency }
+    ? {
+        title: deals[0].title,
+        package: deals[0].package,
+        stageLabel: deals[0].stage_label,
+        monthlyValue: deals[0].monthly_value,
+        currency: deals[0].currency,
+      }
     : null;
 
   return (
@@ -88,7 +90,7 @@ export default async function OrganisationDetailPage({ params }: { params: Promi
                   {deals.map((deal, i) => (
                     <li key={deal.id} className={i > 0 ? "border-t border-midnight/10" : ""}>
                       <Link href={`/deals/${deal.id}`} className="flex items-center justify-between gap-4 text-sm py-2.5">
-                        <span className="text-midnight">{deal.title}</span>
+                        <span className="text-midnight">{deal.package || deal.title}</span>
                         <span className="text-grey-on-light whitespace-nowrap">
                           {deal.stage_label}
                           {formatMoney(deal.monthly_value, deal.currency) ? ` · ${formatMoney(deal.monthly_value, deal.currency)}` : ""}

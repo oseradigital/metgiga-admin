@@ -4,18 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { updateOrganisation } from "@/lib/crm/actions";
 import { ORGANISATION_STATUSES, type Organisation, type OrganisationStatus } from "@/lib/crm/organisation-types";
+import { formatMoney } from "@/lib/format";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
-function formatMoney(value: number | null, currency: string) {
-  if (value === null) return null;
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-}
-
 // The Overview tab: a compact summary (status/website/primary contact/
-// active deal/MRR) with an inline edit form for the organisation's own
+// active deal/value) with an inline edit form for the organisation's own
 // fields (name/status/legal name/website/industry). Primary contact and
 // active deal aren't editable from here — those come from the Contacts
 // and Deals tabs respectively, this just reflects them.
@@ -26,7 +22,7 @@ export function OrganisationEditor({
 }: {
   organisation: Organisation;
   primaryContactName: string | null;
-  activeDeal: { title: string; stageLabel: string; monthlyValue: number | null; currency: string } | null;
+  activeDeal: { title: string; package: string | null; stageLabel: string; monthlyValue: number | null; currency: string } | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -89,10 +85,12 @@ export function OrganisationEditor({
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Active deal</dt>
-            <dd className="text-midnight">{activeDeal ? `${activeDeal.title} · ${activeDeal.stageLabel}` : "—"}</dd>
+            <dd className="text-midnight">
+              {activeDeal ? `${activeDeal.package || activeDeal.title} · ${activeDeal.stageLabel}` : "—"}
+            </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Potential / active MRR</dt>
+            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Potential / active value</dt>
             <dd className="text-midnight tabular-nums">
               {activeDeal ? formatMoney(activeDeal.monthlyValue, activeDeal.currency) ?? "—" : "—"}
             </dd>

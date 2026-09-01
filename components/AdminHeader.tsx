@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { AccountMenu } from "@/components/AccountMenu";
+import { NavLinks } from "@/components/NavLinks";
 import type { TeamMember } from "@/lib/supabase/team";
 
 // Shared chrome for every authenticated screen. Nav only lists what's
@@ -15,17 +16,7 @@ export function AdminHeader({ member }: { member: TeamMember }) {
             <BrandMark className="w-5 h-5" />
             <span className="font-display text-base">Metgiga Admin</span>
           </Link>
-          <nav className="hidden sm:flex items-center gap-6 text-sm">
-            <Link href="/organisations" className="text-grey-on-light hover:text-midnight transition-colors">
-              Organisations
-            </Link>
-            <Link href="/deals" className="text-grey-on-light hover:text-midnight transition-colors">
-              Deals
-            </Link>
-            <Link href="/tasks" className="text-grey-on-light hover:text-midnight transition-colors">
-              Tasks
-            </Link>
-          </nav>
+          <NavLinks />
         </div>
         <AccountMenu member={member} />
       </div>

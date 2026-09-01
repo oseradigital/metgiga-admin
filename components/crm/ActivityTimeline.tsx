@@ -3,24 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addNote } from "@/lib/crm/actions";
+import { describeActivityEvent } from "@/lib/crm/describe-activity";
 import type { ActivityEvent, DealStage } from "@/lib/crm/deal-types";
 import { Button } from "@/components/ui/Button";
 
 function describe(event: ActivityEvent, stages: DealStage[]): string {
-  const actor = event.actor_name ?? "Someone";
-  switch (event.event_type) {
-    case "deal.created":
-      return `${actor} created this deal`;
-    case "deal.stage_changed": {
-      const from = stages.find((s) => s.id === event.metadata.from)?.label ?? String(event.metadata.from ?? "");
-      const to = stages.find((s) => s.id === event.metadata.to)?.label ?? String(event.metadata.to ?? "");
-      return `${actor} moved this deal from ${from} to ${to}`;
-    }
-    case "note.added":
-      return String(event.metadata.text ?? "");
-    default:
-      return `${actor} — ${event.event_type}`;
-  }
+  return describeActivityEvent(event.event_type, event.actor_name, event.metadata, stages);
 }
 
 export function ActivityTimeline({

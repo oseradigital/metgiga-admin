@@ -74,7 +74,10 @@ test.describe("Login", () => {
       memberId = member.id;
 
       await loginAs(page, member.email, member.password);
-      await expect(page.getByRole("heading", { name: "Welcome, E2E." })).toBeVisible();
+      // The protected landing page is now Overview (was a bare "Welcome,
+      // {name}" placeholder) — confirming the redirect actually reached
+      // an authenticated screen, not that specific page's old content.
+      await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     } finally {
       if (memberId) await deleteAuthUser(memberId);
     }

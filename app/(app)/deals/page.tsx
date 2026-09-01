@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { listDeals, listDealStages } from "@/lib/crm/deals";
 import { DealStageSelect } from "@/components/crm/DealStageSelect";
-
-function formatMoney(value: number | null, currency: string) {
-  if (value === null) return null;
-  return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-}
+import { formatMoney } from "@/lib/format";
 
 export default async function DealsPage() {
   const [deals, stages] = await Promise.all([listDeals(), listDealStages()]);
@@ -14,7 +10,9 @@ export default async function DealsPage() {
     const stage = stages.find((s) => s.id === d.stage);
     return stage && !stage.is_won && !stage.is_lost;
   });
-  const potentialMrr = openDeals.reduce((sum, d) => sum + (d.monthly_value ?? 0), 0);
+  // "Value", not "MRR" — a prospect's proposed price isn't realised
+  // recurring revenue yet.
+  const potentialValue = openDeals.reduce((sum, d) => sum + (d.monthly_value ?? 0), 0);
 
   const byStage = new Map<string, typeof deals>();
   for (const stage of stages) byStage.set(stage.id, []);
@@ -26,7 +24,7 @@ export default async function DealsPage() {
         <div>
           <h1 className="font-display text-2xl sm:text-3xl leading-tight mb-1">Deals</h1>
           <p className="text-sm text-grey-on-light">
-            Potential MRR: {formatMoney(potentialMrr, "GBP") ?? "£0"} across {openDeals.length} open deal
+            Potential value: {formatMoney(potentialValue, "GBP") ?? "£0"} across {openDeals.length} open deal
             {openDeals.length === 1 ? "" : "s"}
           </p>
         </div>
