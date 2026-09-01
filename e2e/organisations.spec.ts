@@ -179,3 +179,152 @@ test.describe("Organisations — lightweight creation, search, filter", () => {
     }
   });
 });
+
+test.describe("Organisations table — row click, columns", () => {
+  test("clicking directly on the organisation name navigates (not just elsewhere in the row)", async ({ page }) => {
+    // Specifically the name text, not some other cell — this is the
+    // exact spot a real bug lived: the visible name span painted above
+    // the row's full-width stretched link and silently swallowed clicks
+    // landing on it, which is precisely where a user is most likely to
+    // click. A test that only clicked an empty cell wouldn't have
+    // caught it.
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Name Click ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Name Click");
+      memberId = member.id;
+      orgId = await createTestOrganisation(orgName, member.id);
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/organisations");
+
+      await page.getByRole("link", { name: orgName }).click();
+      await expect(page).toHaveURL(new RegExp(`/organisations/${orgId}`));
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+
+  test("clicking elsewhere in the row (not the name) also navigates", async ({ page }) => {
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Row Click ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Row Click");
+      memberId = member.id;
+      orgId = await createTestOrganisation(orgName, member.id);
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/organisations");
+
+      // The Status cell — deliberately not the name link. force: true is
+      // load-bearing and deliberate, not a workaround for a real bug:
+      // the row's stretched link lives inside the FIRST <td> and covers
+      // the whole row only via absolute positioning, so from this cell's
+      // perspective the link is a non-descendant element overlapping it.
+      // Playwright's actionability check treats that as "obscured" and
+      // waits forever, even though a real click at that pixel correctly
+      // hits the link — confirmed directly with elementFromPoint()
+      // against the live page before writing this, not assumed.
+      const row = page.locator("tr", { hasText: orgName });
+      await row.locator("td").nth(2).click({ force: true });
+      await expect(page).toHaveURL(new RegExp(`/organisations/${orgId}`));
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+
+  test("search state survives navigating into an organisation and back", async ({ page }) => {
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Preserve Search ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Preserve Search");
+      memberId = member.id;
+      orgId = await createTestOrganisation(orgName, member.id);
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/organisations");
+      await page.getByLabel("Search organisations").fill(orgName);
+      await expect(page).toHaveURL(/[?&]q=/);
+
+      await page.getByRole("link", { name: orgName }).click();
+      await expect(page).toHaveURL(new RegExp(`/organisations/${orgId}`));
+
+      await page.getByRole("link", { name: "← Organisations" }).click();
+      await expect(page.getByLabel("Search organisations")).toHaveValue(orgName);
+      await expect(page.getByRole("link", { name: orgName })).toBeVisible();
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+
+  test("active deal shows package and stage together, falling back to title if no package", async ({ page }) => {
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Deal Label ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Deal Label");
+      memberId = member.id;
+      orgId = await createTestOrganisation(orgName, member.id);
+      await testAdminClient()
+        .schema("crm")
+        .from("deals")
+        .insert({ organisation_id: orgId, title: "Some deal title", package: "Full Funnel", stage: "proposal", monthly_value: 1800, created_by: member.id });
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/organisations");
+
+      const row = page.locator("tr", { hasText: orgName });
+      await expect(row).toContainText("Full Funnel · Proposal");
+      await expect(row).not.toContainText("Some deal title");
+      await expect(row).toContainText("£1,800");
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+
+  test("next action shows the open task's title and due date, and last activity shows relative time", async ({ page }) => {
+    let memberId: string | undefined;
+    let orgId: string | undefined;
+    const orgName = `E2E Columns ${Date.now()}`;
+
+    try {
+      const member = await createThrowawayTeamMember("E2E Columns");
+      memberId = member.id;
+      orgId = await createTestOrganisation(orgName, member.id);
+      // A deal logs activity via the deals_log_activity trigger (0007) —
+      // gives this org a real, current "last activity" to display.
+      await testAdminClient()
+        .schema("crm")
+        .from("deals")
+        .insert({ organisation_id: orgId, title: "E2E deal", stage: "discovery_booked", created_by: member.id });
+      await testAdminClient()
+        .schema("crm")
+        .from("tasks")
+        .insert({ organisation_id: orgId, title: "E2E follow-up call", due_at: "2026-12-25", status: "open", created_by: member.id });
+
+      await loginAs(page, member.email, member.password);
+      await page.goto("/organisations");
+
+      const row = page.locator("tr", { hasText: orgName });
+      await expect(row).toContainText("E2E follow-up call");
+      await expect(row).toContainText("25 Dec 2026");
+      // "Just now" is the only relative-time string guaranteed not to
+      // flake against real clock time in CI.
+      await expect(row).toContainText("Just now");
+    } finally {
+      if (orgId) await deleteOrganisation(orgId);
+      if (memberId) await deleteAuthUser(memberId);
+    }
+  });
+});

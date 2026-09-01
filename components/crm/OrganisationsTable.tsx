@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ORGANISATION_STATUSES, type OrganisationListItem, type OrganisationStatus } from "@/lib/crm/organisation-types";
 import { createTask } from "@/lib/crm/actions";
 import { formatMoney, formatDate, formatDateTime, formatRelativeTime } from "@/lib/format";
@@ -28,6 +28,10 @@ const FILTERS: { label: string; value: "all" | OrganisationStatus }[] = [
   { label: "Paused", value: "paused" },
   { label: "Lost", value: "lost" },
 ];
+
+function isOrgStatus(value: string): value is OrganisationStatus {
+  return (ORGANISATION_STATUSES as readonly string[]).includes(value);
+}
 
 function matchesSearch(org: OrganisationListItem, query: string) {
   const q = query.trim().toLowerCase();
@@ -60,8 +64,9 @@ function LastActivity({ iso }: { iso: string | null }) {
 
 // Shows the next open task's title (+ due date if it has one), or —
 // when there isn't one — a muted state with an inline one-field way to
-// add one right there, without leaving the list. Not inside a <Link>
-// (only the organisation-name cell is), so no click-propagation concerns.
+// add one right there, without leaving the list. Wrapped in `relative
+// z-10` by the caller so it sits above the row's full-width stretched
+// link (see the table body below) and stays independently clickable.
 function NextActionCell({ org }: { org: OrganisationListItem }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -120,8 +125,36 @@ function NextActionCell({ org }: { org: OrganisationListItem }) {
 }
 
 export function OrganisationsTable({ organisations }: { organisations: OrganisationListItem[] }) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | OrganisationStatus>("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Search/filter state lives in the URL (?q=&status=), not just
+  // useState — a plain local-state version loses everything the moment
+  // you navigate into an organisation and back, since that unmounts and
+  // remounts this component. Reading the initial value from the URL and
+  // writing every change back to it (via replace, not push, so typing
+  // doesn't spam browser history) means the URL the user lands on when
+  // they click into a row already carries the live state, so browser/
+  // router "back" restores it for free.
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [status, setStatus] = useState<"all" | OrganisationStatus>(() => {
+    const s = searchParams.get("status");
+    return s && isOrgStatus(s) ? s : "all";
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("q", query.trim());
+    if (status !== "all") params.set("status", status);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // Deliberately excludes router/pathname from deps — including them
+    // (both effectively stable, but Next.js returns new function/string
+    // identities across renders) would re-run this on every navigation
+    // rather than only on actual query/status changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, status]);
 
   const searched = useMemo(() => organisations.filter((org) => matchesSearch(org, query)), [organisations, query]);
 
@@ -136,6 +169,19 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
     () => (status === "all" ? searched : searched.filter((org) => org.status === status)),
     [searched, status],
   );
+
+  // Carried on every row link as ?from=, so the detail page's "←
+  // Organisations" link returns to exactly this filtered/searched view
+  // — see app/(app)/organisations/[id]/page.tsx. Empty when there's no
+  // search/filter active, since plain "/organisations" already is that
+  // view.
+  const returnQuery = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (query.trim()) qs.set("q", query.trim());
+    if (status !== "all") qs.set("status", status);
+    const s = qs.toString();
+    return s ? `?from=${encodeURIComponent(`/organisations?${s}`)}` : "";
+  }, [query, status]);
 
   // Truly empty (no organisations exist at all) vs. empty because of an
   // active search/filter — these need different messages, not the same
@@ -195,7 +241,15 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
         </div>
       ) : (
         <>
-          {/* Desktop: a real table. */}
+          {/* Desktop: a real table. Each row is fully clickable via a
+              stretched link — a Link absolutely positioned to cover the
+              whole <tr> (relative), with sr-only text for its accessible
+              name and the actually-visible name rendered as a separate,
+              non-interactive span so it isn't doubled up for screen
+              readers. Other interactive cells (Next action) sit in a
+              `relative z-10` wrapper so they stay clickable above the
+              z-0 stretched link instead of the row swallowing their
+              clicks. */}
           <div className="hidden sm:block bg-bone rounded-xl border border-midnight/10 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -211,18 +265,34 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
               </thead>
               <tbody>
                 {visible.map((org) => (
-                  <tr key={org.id} className="border-b border-midnight/10 last:border-b-0 hover:bg-midnight/[0.02]">
+                  <tr
+                    key={org.id}
+                    className="group relative border-b border-midnight/10 last:border-b-0 hover:bg-midnight/[0.02] focus-within:bg-midnight/[0.02]"
+                  >
                     <td className="px-4 py-2.5">
-                      <Link href={`/organisations/${org.id}`} className="text-midnight font-medium hover:underline">
-                        {org.name}
+                      <Link
+                        href={`/organisations/${org.id}${returnQuery}`}
+                        className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-copper/50"
+                      >
+                        <span className="sr-only">{org.name}</span>
                       </Link>
+                      {/* pointer-events-none is load-bearing: without it
+                          this span (painted after the Link in DOM order,
+                          so it sits on top) swallows clicks landing
+                          directly on the visible text, and the row stops
+                          navigating exactly where a user is most likely
+                          to click. Found by testing the click, not
+                          assumed. */}
+                      <span className="relative pointer-events-none text-midnight font-medium group-hover:underline">
+                        {org.name}
+                      </span>
                     </td>
                     <td className="px-4 py-2.5 text-grey-on-light">{org.primaryContactName || "—"}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={STATUS_TONE[org.status]}>{org.status}</Badge>
                     </td>
                     <td className="px-4 py-2.5 text-grey-on-light">{org.activeDeal ? dealLabel(org.activeDeal) : "—"}</td>
-                    <td className="px-4 py-2.5 text-xs">
+                    <td className="px-4 py-2.5 text-xs relative z-10">
                       <NextActionCell org={org} />
                     </td>
                     <td className="px-4 py-2.5 text-xs">
@@ -237,12 +307,15 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
             </table>
           </div>
 
-          {/* Mobile: a compact stacked list, not a horizontally scrolled table. */}
+          {/* Mobile: a compact card, not a squeezed table — organisation,
+              status, contact, active deal/value, next action. Last
+              activity is deliberately left off this card (shown on
+              desktop only) to keep it to exactly those five things. */}
           <ul className="sm:hidden space-y-2">
             {visible.map((org) => (
               <li key={org.id}>
                 <Link
-                  href={`/organisations/${org.id}`}
+                  href={`/organisations/${org.id}${returnQuery}`}
                   className="block bg-bone rounded-xl border border-midnight/10 px-4 py-3 hover:border-midnight/20 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -258,12 +331,9 @@ export function OrganisationsTable({ organisations }: { organisations: Organisat
                         : ""}
                     </p>
                   ) : null}
-                  <div className="flex items-center justify-between gap-2 mt-1.5 text-xs text-grey-on-light/80">
-                    <span className="truncate">
-                      {org.nextAction ? `Next: ${org.nextAction.title}` : "No next action"}
-                    </span>
-                    {org.lastActivityAt ? <span title={formatDateTime(org.lastActivityAt)}>{formatRelativeTime(org.lastActivityAt)}</span> : null}
-                  </div>
+                  <p className="text-xs text-grey-on-light/80 truncate mt-1.5">
+                    {org.nextAction ? `Next: ${org.nextAction.title}` : "No next action"}
+                  </p>
                 </Link>
               </li>
             ))}

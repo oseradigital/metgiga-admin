@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { updateOrganisation } from "@/lib/crm/actions";
 import { ORGANISATION_STATUSES, type Organisation, type OrganisationStatus } from "@/lib/crm/organisation-types";
 import { formatMoney } from "@/lib/format";
@@ -19,13 +19,30 @@ export function OrganisationEditor({
   organisation,
   primaryContactName,
   activeDeal,
+  startInEditMode = false,
 }: {
   organisation: Organisation;
   primaryContactName: string | null;
   activeDeal: { title: string; package: string | null; stageLabel: string; monthlyValue: number | null; currency: string } | null;
+  // Driven by ?edit=1 in the URL — the header's "Edit" menu item links
+  // there directly (see app/(app)/organisations/[id]/page.tsx) so
+  // fixing a typo works from any tab, not just after first clicking
+  // into Overview.
+  startInEditMode?: boolean;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startInEditMode);
+
+  // useState(startInEditMode) only applies on this component's first
+  // mount — clicking the header's "•••" → Edit changes the URL
+  // (?edit=1) but doesn't remount this component (same route segment,
+  // only searchParams changed), so without this the prop update was
+  // silently ignored and edit mode never actually opened. Found by
+  // testing the click, not assumed: the URL was correct, the tab was
+  // correct, but the read-only view stayed on screen.
+  useEffect(() => {
+    if (startInEditMode) setEditing(true);
+  }, [startInEditMode]);
   const [name, setName] = useState(organisation.name);
   const [legalName, setLegalName] = useState(organisation.legal_name ?? "");
   const [website, setWebsite] = useState(organisation.website ?? "");

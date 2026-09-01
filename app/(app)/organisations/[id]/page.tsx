@@ -11,7 +11,8 @@ import { OrganisationEditor } from "@/components/crm/OrganisationEditor";
 import { ContactsPanel } from "@/components/crm/ContactsPanel";
 import { TasksPanel } from "@/components/crm/TasksPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
-import { OrganisationTabs } from "@/components/crm/OrganisationTabs";
+import { OrganisationTabs, type Tab } from "@/components/crm/OrganisationTabs";
+import { OrganisationMenu } from "@/components/crm/OrganisationMenu";
 import { Badge } from "@/components/ui/Badge";
 import { formatMoney } from "@/lib/format";
 
@@ -24,8 +25,23 @@ const STATUS_TONE: Record<string, "neutral" | "copper" | "success"> = {
   lost: "neutral",
 };
 
-export default async function OrganisationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+const TAB_PARAM: Record<string, Tab> = {
+  overview: "Overview",
+  contacts: "Contacts",
+  deals: "Deals",
+  tasks: "Tasks",
+  activity: "Activity",
+};
+
+export default async function OrganisationDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string; from?: string }>;
+}) {
   const { id } = await params;
+  const { tab, edit, from } = await searchParams;
   const organisation = await getOrganisation(id);
 
   // Also what a real RLS denial or a bad/foreign id looks like — both
@@ -55,24 +71,35 @@ export default async function OrganisationDetailPage({ params }: { params: Promi
       }
     : null;
 
+  // The list page keeps its own current search/filter state in the URL
+  // and passes it along as `from` on every row link — using that exact
+  // URL to return, rather than a hardcoded "/organisations" or
+  // router.back() (which would follow whatever's actually in browser
+  // history, not necessarily the list at all if this page was reached
+  // some other way, e.g. from Overview's Needs attention).
+  const backHref = from && from.startsWith("/organisations") ? from : "/organisations";
+
   return (
     <div className="max-w-3xl">
-      <Link href="/organisations" className="text-sm text-grey-on-light hover:text-midnight transition-colors">
+      <Link href={backHref} className="text-sm text-grey-on-light hover:text-midnight transition-colors">
         ← Organisations
       </Link>
 
-      <div className="flex items-center gap-3 mt-3 mb-5">
+      <div className="flex items-center gap-2 mt-3 mb-5">
         <h1 className="font-display text-2xl leading-tight">{organisation.name}</h1>
         <Badge tone={STATUS_TONE[organisation.status]}>{organisation.status}</Badge>
+        <OrganisationMenu organisationId={organisation.id} />
       </div>
 
       <OrganisationTabs
+        initialTab={tab ? TAB_PARAM[tab] : undefined}
         panels={{
           Overview: (
             <OrganisationEditor
               organisation={organisation}
               primaryContactName={primaryContactName}
               activeDeal={activeDeal}
+              startInEditMode={edit === "1"}
             />
           ),
           Contacts: <ContactsPanel organisationId={organisation.id} contacts={contacts} />,
