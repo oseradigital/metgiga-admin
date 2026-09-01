@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-bone-2">
       <AdminHeader member={member} />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">{children}</main>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">{children}</main>
     </div>
   );
 }

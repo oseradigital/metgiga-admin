@@ -6,7 +6,7 @@ import { listActivity } from "@/lib/crm/activity";
 import { listTasksForDeal } from "@/lib/crm/tasks";
 import { DealEditor } from "@/components/crm/DealEditor";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
-import { DealTasksPanel } from "@/components/crm/DealTasksPanel";
+import { TasksPanel } from "@/components/crm/TasksPanel";
 
 export default async function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,7 +33,7 @@ export default async function DealDetailPage({ params }: { params: Promise<{ id:
       </Link>
 
       <DealEditor deal={deal} stages={stages} teamMembers={teamMembers} />
-      <DealTasksPanel dealId={deal.id} organisationId={deal.organisation_id} tasks={tasks} teamMembers={teamMembers} />
+      <TasksPanel dealId={deal.id} organisationId={deal.organisation_id} tasks={tasks} teamMembers={teamMembers} />
       <ActivityTimeline
         entityType="deal"
         entityId={deal.id}

@@ -11,19 +11,24 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 
-// Compact, deal-scoped sibling of the global /tasks page — same
-// underlying data, no organisation/deal picker since both are already
-// fixed by the page this sits on.
-export function DealTasksPanel({
-  dealId,
+// Shared by the deal detail page and the organisation's Tasks tab — same
+// underlying data and form, just scoped differently. On a deal, dealId
+// is fixed and every task is deal-scoped. On an organisation, dealId is
+// omitted (the task is organisation-level only) and the list can be a
+// mix of organisation-only and deal-scoped tasks belonging to it — hence
+// showDeal defaults to true there, so it's clear which is which.
+export function TasksPanel({
   organisationId,
+  dealId,
   tasks,
   teamMembers,
+  showDeal = false,
 }: {
-  dealId: string;
   organisationId: string;
+  dealId?: string;
   tasks: Task[];
   teamMembers: TeamMemberOption[];
+  showDeal?: boolean;
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -39,7 +44,7 @@ export function DealTasksPanel({
     setError(null);
     if (!title.trim()) {
       setTitleError("Enter a task title.");
-      document.getElementById("deal-task-title")?.focus();
+      document.getElementById("task-title")?.focus();
       return;
     }
     setTitleError(undefined);
@@ -60,9 +65,8 @@ export function DealTasksPanel({
   }
 
   return (
-    <div className="bg-bone rounded-2xl border border-midnight/10 p-6 sm:p-8">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-display text-xl">Tasks</h2>
+    <div className="bg-bone rounded-xl border border-midnight/10 p-5">
+      <div className="flex items-center justify-end mb-3">
         {!adding ? (
           <Button variant="ghost" onClick={() => setAdding(true)}>
             Add task
@@ -75,16 +79,16 @@ export function DealTasksPanel({
       {tasks.length > 0 ? (
         <ul className="mb-2">
           {tasks.map((task) => (
-            <TaskItem key={task.id} task={task} showDeal={false} showOrganisation={false} />
+            <TaskItem key={task.id} task={task} showDeal={showDeal} showOrganisation={false} />
           ))}
         </ul>
       ) : null}
 
       {adding ? (
         <form onSubmit={handleAdd} className="space-y-4 pt-2" noValidate>
-          <Field label="Title" htmlFor="deal-task-title" required error={titleError}>
+          <Field label="Title" htmlFor="task-title" required error={titleError}>
             <Input
-              id="deal-task-title"
+              id="task-title"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -93,11 +97,11 @@ export function DealTasksPanel({
             />
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Due date" htmlFor="deal-task-dueAt" optional>
-              <Input id="deal-task-dueAt" type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+            <Field label="Due date" htmlFor="task-dueAt" optional>
+              <Input id="task-dueAt" type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
             </Field>
-            <Field label="Assignee" htmlFor="deal-task-assignedTo" optional>
-              <Select id="deal-task-assignedTo" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
+            <Field label="Assignee" htmlFor="task-assignedTo" optional>
+              <Select id="task-assignedTo" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
                 <option value="">Unassigned</option>
                 {teamMembers.map((m) => (
                   <option key={m.id} value={m.id}>

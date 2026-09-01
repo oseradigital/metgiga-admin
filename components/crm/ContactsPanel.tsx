@@ -75,9 +75,8 @@ export function ContactsPanel({ organisationId, contacts }: { organisationId: st
   }
 
   return (
-    <div className="bg-bone rounded-2xl border border-midnight/10 p-6 sm:p-8">
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="font-display text-xl">Contacts</h2>
+    <div className="bg-bone rounded-xl border border-midnight/10 p-5">
+      <div className="flex items-center justify-end mb-3">
         {!adding ? (
           <Button variant="ghost" onClick={() => setAdding(true)}>
             Add contact

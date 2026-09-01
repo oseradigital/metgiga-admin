@@ -29,12 +29,17 @@ export function ActivityTimeline({
   organisationId,
   events,
   stages,
+  showHeading = true,
 }: {
   entityType: "deal" | "organisation";
   entityId: string;
   organisationId: string;
   events: ActivityEvent[];
   stages: DealStage[];
+  // Redundant when this sits inside a page's own "Activity" tab (the tab
+  // label already says it) — but the deal detail page isn't tabbed, so
+  // it still needs its own heading there.
+  showHeading?: boolean;
 }) {
   const router = useRouter();
   const [note, setNote] = useState("");
@@ -59,10 +64,10 @@ export function ActivityTimeline({
   }
 
   return (
-    <div className="bg-bone rounded-2xl border border-midnight/10 p-6 sm:p-8">
-      <h2 className="font-display text-xl mb-5">Activity</h2>
+    <div className="bg-bone rounded-xl border border-midnight/10 p-5">
+      {showHeading ? <h2 className="font-display text-xl mb-4">Activity</h2> : null}
 
-      <form onSubmit={handleAddNote} className="mb-6">
+      <form onSubmit={handleAddNote} className="mb-5">
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}

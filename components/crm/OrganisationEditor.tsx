@@ -8,18 +8,26 @@ import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 
-const STATUS_TONE: Record<OrganisationStatus, "neutral" | "copper" | "success"> = {
-  prospect: "neutral",
-  activating: "copper",
-  active: "success",
-  paused: "neutral",
-  cancelled: "neutral",
-  lost: "neutral",
-};
+function formatMoney(value: number | null, currency: string) {
+  if (value === null) return null;
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+}
 
-export function OrganisationEditor({ organisation }: { organisation: Organisation }) {
+// The Overview tab: a compact summary (status/website/primary contact/
+// active deal/MRR) with an inline edit form for the organisation's own
+// fields (name/status/legal name/website/industry). Primary contact and
+// active deal aren't editable from here — those come from the Contacts
+// and Deals tabs respectively, this just reflects them.
+export function OrganisationEditor({
+  organisation,
+  primaryContactName,
+  activeDeal,
+}: {
+  organisation: Organisation;
+  primaryContactName: string | null;
+  activeDeal: { title: string; stageLabel: string; monthlyValue: number | null; currency: string } | null;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(organisation.name);
@@ -56,21 +64,13 @@ export function OrganisationEditor({ organisation }: { organisation: Organisatio
 
   if (!editing) {
     return (
-      <div className="bg-bone rounded-2xl border border-midnight/10 p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
-            <h1 className="font-display text-2xl sm:text-3xl leading-tight mb-2">{organisation.name}</h1>
-            <Badge tone={STATUS_TONE[organisation.status]}>{organisation.status}</Badge>
-          </div>
+      <div className="bg-bone rounded-xl border border-midnight/10 p-5">
+        <div className="flex items-center justify-end mb-3">
           <Button variant="ghost" onClick={() => setEditing(true)}>
             Edit
           </Button>
         </div>
         <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Legal name</dt>
-            <dd className="text-midnight">{organisation.legal_name || "—"}</dd>
-          </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Website</dt>
             <dd className="text-midnight">
@@ -84,16 +84,44 @@ export function OrganisationEditor({ organisation }: { organisation: Organisatio
             </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Industry</dt>
-            <dd className="text-midnight">{organisation.industry || "—"}</dd>
+            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Primary contact</dt>
+            <dd className="text-midnight">{primaryContactName || "—"}</dd>
           </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Active deal</dt>
+            <dd className="text-midnight">{activeDeal ? `${activeDeal.title} · ${activeDeal.stageLabel}` : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Potential / active MRR</dt>
+            <dd className="text-midnight tabular-nums">
+              {activeDeal ? formatMoney(activeDeal.monthlyValue, activeDeal.currency) ?? "—" : "—"}
+            </dd>
+          </div>
+          {organisation.legal_name ? (
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Legal name</dt>
+              <dd className="text-midnight">{organisation.legal_name}</dd>
+            </div>
+          ) : null}
+          {organisation.industry ? (
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Industry</dt>
+              <dd className="text-midnight">{organisation.industry}</dd>
+            </div>
+          ) : null}
+          {organisation.source ? (
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-grey-on-light font-medium mb-1">Lead source</dt>
+              <dd className="text-midnight">{organisation.source}</dd>
+            </div>
+          ) : null}
         </dl>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSave} className="bg-bone rounded-2xl border border-midnight/10 p-6 sm:p-8 space-y-5" noValidate>
+    <form onSubmit={handleSave} className="bg-bone rounded-xl border border-midnight/10 p-5 space-y-4" noValidate>
       <Field label="Name" htmlFor="edit-name" required error={nameError}>
         <Input
           id="edit-name"

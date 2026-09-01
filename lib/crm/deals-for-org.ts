@@ -1,14 +1,21 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
-export type OrgDealSummary = { id: string; title: string; stage: string; stage_label: string; monthly_value: number | null };
+export type OrgDealSummary = {
+  id: string;
+  title: string;
+  stage: string;
+  stage_label: string;
+  monthly_value: number | null;
+  currency: string;
+};
 
 export async function listDealsForOrganisation(organisationId: string): Promise<OrgDealSummary[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .schema("crm")
     .from("deals")
-    .select("id, title, stage, monthly_value, deal_stages!stage(label)")
+    .select("id, title, stage, monthly_value, currency, deal_stages!stage(label)")
     .eq("organisation_id", organisationId)
     .order("created_at", { ascending: false });
 
@@ -24,5 +31,6 @@ export async function listDealsForOrganisation(organisationId: string): Promise<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stage_label: (row.deal_stages as any)?.label ?? row.stage,
     monthly_value: row.monthly_value,
+    currency: row.currency,
   }));
 }

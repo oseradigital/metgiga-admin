@@ -28,11 +28,20 @@ async function requireTeamMember() {
   return member;
 }
 
+// Deliberately lightweight — a cold prospect may only have a name and
+// an Instagram handle at first. legal_name/industry aren't collected
+// here at all; they're edited later from the organisation detail page
+// once actually known, not guessed at creation. If a primary contact
+// name or email is given, a linked crm.contacts row is created too
+// (marked primary) — the "Primary contact" column on the organisations
+// table reads from crm.contacts, not a duplicate field on organisations
+// itself.
 export async function createOrganisation(input: {
   name: string;
-  legalName?: string;
   website?: string;
-  industry?: string;
+  primaryContactName?: string;
+  primaryContactEmail?: string;
+  source?: string;
 }): Promise<ActionResult<{ id: string }>> {
   await requireTeamMember();
 
@@ -45,9 +54,8 @@ export async function createOrganisation(input: {
     .from("organisations")
     .insert({
       name,
-      legal_name: emptyToNull(input.legalName),
       website: emptyToNull(input.website),
-      industry: emptyToNull(input.industry),
+      source: emptyToNull(input.source),
       // created_by defaults to auth.uid() in the DB — not set here, so a
       // caller can never claim someone else's id (see 0007's `with check`).
     })
@@ -57,6 +65,23 @@ export async function createOrganisation(input: {
   if (error) {
     console.error("[createOrganisation]", error.message);
     return { ok: false, error: "Couldn't create this organisation. Try again." };
+  }
+
+  const contactName = input.primaryContactName?.trim();
+  const contactEmail = input.primaryContactEmail?.trim();
+  if (contactName || contactEmail) {
+    const [firstName, ...rest] = (contactName || "Primary contact").split(/\s+/);
+    const { error: contactError } = await supabase.schema("crm").from("contacts").insert({
+      organisation_id: data.id,
+      first_name: firstName,
+      last_name: rest.length ? rest.join(" ") : null,
+      email: emptyToNull(contactEmail),
+      is_primary: true,
+    });
+    // Not fatal — the organisation itself was created successfully; a
+    // failed contact insert shouldn't roll back or block on that, just
+    // get logged. The contact can always be added from the detail page.
+    if (contactError) console.error("[createOrganisation:contact]", contactError.message);
   }
 
   revalidatePath("/organisations");

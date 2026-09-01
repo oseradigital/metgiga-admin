@@ -41,6 +41,28 @@ export async function listTasks(): Promise<Task[]> {
   return sortTasks(data.map(mapTask));
 }
 
+// Covers both organisation-level tasks and deal-scoped tasks belonging
+// to this organisation — createTask() always sets organisation_id
+// alongside deal_id for a deal-scoped task (see DealTasksPanel), so
+// filtering on organisation_id alone naturally captures both without
+// needing a separate "OR deal.organisation_id = X" join.
+export async function listTasksForOrganisation(organisationId: string): Promise<Task[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("organisation_id", organisationId)
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[listTasksForOrganisation]", error.message);
+    return [];
+  }
+  return sortTasks(data.map(mapTask));
+}
+
 export async function listTasksForDeal(dealId: string): Promise<Task[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
