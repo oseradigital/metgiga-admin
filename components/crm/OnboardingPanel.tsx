@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { OnboardingRecord } from "@/lib/crm/onboarding-types";
-import { isOnboardingComplete, onboardingProgress } from "@/lib/crm/onboarding";
+import { isOnboardingComplete, isOnboardingStalled, onboardingProgress, ONBOARDING_STALL_DAYS } from "@/lib/crm/onboarding";
 import { enumLabel, formatBoolean, formatList, formatLocations, formatPractitioners, formatText } from "@/lib/crm/onboarding-format";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatRelativeTime } from "@/lib/format";
 import { Badge } from "@/components/ui/Badge";
 import { LinkOnboardingSearch } from "@/components/crm/LinkOnboardingSearch";
 
@@ -49,6 +49,7 @@ export function OnboardingPanel({ organisationId, record }: { organisationId: st
   }
 
   const complete = isOnboardingComplete(record);
+  const stalled = isOnboardingStalled(record);
   const { filled, total } = onboardingProgress(record);
 
   return (
@@ -56,11 +57,28 @@ export function OnboardingPanel({ organisationId, record }: { organisationId: st
       <div className="bg-bone rounded-xl border border-midnight/10 p-5">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <Badge tone={complete ? "success" : "copper"}>{complete ? "Completed" : "In progress"}</Badge>
+          {stalled ? (
+            // Not Badge's own "copper" tone — that's already used for
+            // "In progress" just above, and the two badges next to each
+            // other would read as the same severity. This is a warning,
+            // not a routine status, so it gets the error colour instead.
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium tracking-wide bg-error/10 text-error">
+              Stalled — no activity in {ONBOARDING_STALL_DAYS}+ days
+            </span>
+          ) : null}
           <span className="text-sm text-grey-on-light">{filled} of {total} fields completed</span>
         </div>
         <dl className="grid sm:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <Field label="Started" value={formatDate(record.created_at)} />
           <Field label={complete ? "Completed on" : "Last updated"} value={formatDate(record.updated_at)} />
+          <Field
+            label="Currently on"
+            value={record.current_onboarding_step ?? "Not started yet"}
+          />
+          <Field
+            label="Client last active"
+            value={record.last_onboarding_activity_at ? formatRelativeTime(record.last_onboarding_activity_at) : "—"}
+          />
           <Field label="Agreement" value={enumLabel("agreement_status", record.agreement_status)} />
           <Field label="Payment confirmed" value={formatBoolean(record.payment_confirmed)} />
           <Field label="Kickoff booked" value={formatBoolean(record.kickoff_booked)} />

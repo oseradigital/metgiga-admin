@@ -97,6 +97,14 @@ export type OnboardingRecord = {
   kickoff_booked: boolean;
 
   ad_account_status: AdAccountStatusRow[];
+
+  // Follow-up (migration 0015 / portal 0008): real step progress and a
+  // stalled-onboarding signal, replacing the earlier "N of M fields
+  // completed" mechanical count. Both null until the client's first
+  // save under the new portal code — no backfill for records already
+  // in progress (confirmed, accepted gap).
+  current_onboarding_step: string | null;
+  last_onboarding_activity_at: string | null;
 };
 
 export type UnlinkedOnboardingRecord = {

@@ -19,8 +19,20 @@ const ONBOARDING_COLUMNS = `
   camera_comfort, who_can_appear, filming_availability, filming_areas, filming_restrictions,
   filming_suitable_treatments, has_consent_procedures,
   agreement_status, payment_confirmed, kickoff_booked,
+  current_onboarding_step, last_onboarding_activity_at,
   ad_account_status(platform, status)
 `;
+
+// Stated threshold, same reasoning as NEEDS_ATTENTION_DAYS in
+// overview.ts — a real number, not a vague heuristic. Deliberately
+// shorter than NEEDS_ATTENTION_DAYS (14): a client mid-onboarding going
+// quiet is a faster-moving problem than a settled organisation's general
+// activity gap. Confirmed with the founder: contained to the Onboarding
+// tab only for now, not Overview's Needs attention — that section's own
+// threshold hasn't been proven against real usage yet either, and
+// stacking a second unproven heuristic there risks making Overview
+// noisy rather than trustworthy.
+export const ONBOARDING_STALL_DAYS = 3;
 
 // At most one per organisation in practice, but nothing in the schema
 // enforces that (see migration 0014's comment) — picks the most
@@ -105,4 +117,17 @@ function isFilled(value: unknown): boolean {
 export function onboardingProgress(record: OnboardingRecord): { filled: number; total: number } {
   const filled = PROGRESS_FIELDS.filter((key) => isFilled(record[key])).length;
   return { filled, total: PROGRESS_FIELDS.length };
+}
+
+// Only ever true when last_onboarding_activity_at is actually set — a
+// record from before this tracking existed (no backfill, confirmed) has
+// no real signal either way, so it's shown as untracked rather than
+// guessed as stalled. Complete records are never "stalled" regardless
+// of how old the timestamp is; a finished onboarding going quiet
+// afterward isn't the thing this is meant to catch.
+export function isOnboardingStalled(record: OnboardingRecord): boolean {
+  if (isOnboardingComplete(record)) return false;
+  if (!record.last_onboarding_activity_at) return false;
+  const ageDays = (Date.now() - new Date(record.last_onboarding_activity_at).getTime()) / 86_400_000;
+  return ageDays > ONBOARDING_STALL_DAYS;
 }
