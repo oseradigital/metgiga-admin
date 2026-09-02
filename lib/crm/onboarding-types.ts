@@ -5,7 +5,7 @@
 //
 // Field grouping below mirrors the Client Portal's own onboarding IA
 // exactly (metgiga-portal/lib/onboarding-types.ts and lib/onboarding/stages.ts:
-// "Your clinic" / "Business & team" / "Marketing access" / "Content &
+// "Your business" / "Business & team" / "Marketing access" / "Content &
 // brand" (which itself covers three screens: brand, discovery,
 // production) / Agreement / Final review) — not a re-guessed grouping,
 // so Admin's read of a record matches the shape the client actually
@@ -28,7 +28,7 @@ export type OnboardingRecord = {
   revoked_at: string | null;
   expires_at: string;
 
-  // Your clinic
+  // Your business
   business_name: string | null;
   legal_company_name: string | null;
   website: string | null;

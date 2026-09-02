@@ -10,7 +10,7 @@ export default async function OrganisationsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-2xl leading-tight mb-1">Organisations</h1>
-          <p className="text-sm text-grey-on-light">Clinics and businesses, prospect through client.</p>
+          <p className="text-sm text-grey-on-light">Businesses, prospect through client.</p>
         </div>
         <Link
           href="/organisations/new"

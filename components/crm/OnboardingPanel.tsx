@@ -25,7 +25,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 // Section titles below match metgiga-portal/lib/onboarding/stages.ts's
-// ONBOARDING_STAGES exactly ("Your clinic" / "Business & team" /
+// ONBOARDING_STAGES exactly ("Your business" / "Business & team" /
 // "Marketing access" / "Content & brand") — checked against that file
 // directly, not re-derived from field names. Agreement/Final review
 // aren't separate sections here: Agreement's three fields
@@ -85,7 +85,7 @@ export function OnboardingPanel({ organisationId, record }: { organisationId: st
         </dl>
       </div>
 
-      <Section title="Your clinic">
+      <Section title="Your business">
         <Field label="Business name" value={formatText(record.business_name)} />
         <Field label="Legal company name" value={formatText(record.legal_company_name)} />
         <Field label="Website" value={formatText(record.website)} />
