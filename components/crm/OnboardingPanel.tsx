@@ -70,7 +70,10 @@ export function OnboardingPanel({ organisationId, record }: { organisationId: st
         </div>
         <dl className="grid sm:grid-cols-3 gap-x-8 gap-y-3 text-sm">
           <Field label="Started" value={formatDate(record.created_at)} />
-          <Field label={complete ? "Completed on" : "Last updated"} value={formatDate(record.updated_at)} />
+          <Field
+            label={complete ? "Completed on" : "Last updated"}
+            value={formatDate(complete ? record.onboarding_completed_at ?? record.updated_at : record.updated_at)}
+          />
           <Field
             label="Currently on"
             value={record.current_onboarding_step ?? "Not started yet"}

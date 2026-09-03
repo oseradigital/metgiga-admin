@@ -14,7 +14,7 @@
 -- no downstream meaning — safe to leave or update by hand.
 --
 -- Portal + admin share one Supabase project, so run this once. Mirrored
--- to metgiga-admin/supabase/migrations/0017_rename_first_stage.sql.
+-- to metgiga-admin/supabase/migrations/0018_rename_first_stage.sql.
 
 alter table public.onboarding_records
   drop constraint if exists onboarding_records_current_onboarding_step_check;

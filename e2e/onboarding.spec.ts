@@ -129,7 +129,6 @@ test.describe("Onboarding tab", () => {
     let memberId: string | undefined;
     let orgId: string | undefined;
     let onboardingId: string | undefined;
-    let clientAuthId: string | undefined;
 
     try {
       const member = await createThrowawayTeamMember("E2E Onboarding Completed Event");
@@ -137,12 +136,14 @@ test.describe("Onboarding tab", () => {
       orgId = await createTestOrganisation(`E2E Onboarding Completed Org ${Date.now()}`, member.id);
 
       // "Complete" per crm.log_onboarding_completed / the portal's own
-      // getOnboardingRecordByToken: auth_user_id is set. Needs a real
-      // auth.users row for the FK — a throwaway non-member stands in for
-      // "a real client account", not a team member.
-      const client = await createThrowawayNonMember();
-      clientAuthId = client.id;
-      const record = await createTestOnboardingRecord({ auth_user_id: clientAuthId, agreement_status: "signed", payment_confirmed: true });
+      // getOnboardingRecordByToken: onboarding_completed_at is set (a
+      // plain timestamp — no auth.users FK to satisfy). The real flow
+      // also sets auth_user_id in the same write.
+      const record = await createTestOnboardingRecord({
+        onboarding_completed_at: new Date().toISOString(),
+        agreement_status: "signed",
+        payment_confirmed: true,
+      });
       onboardingId = record.id;
 
       // Linking while already complete — the "linked after completion"
@@ -188,7 +189,6 @@ test.describe("Onboarding tab", () => {
       if (onboardingId) await deleteOnboardingRecord(onboardingId);
       if (orgId) await deleteOrganisation(orgId);
       if (memberId) await deleteAuthUser(memberId);
-      if (clientAuthId) await deleteAuthUser(clientAuthId);
     }
   });
 });

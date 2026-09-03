@@ -27,6 +27,7 @@ export type OnboardingRecord = {
   updated_at: string;
   revoked_at: string | null;
   expires_at: string;
+  onboarding_completed_at: string | null;
 
   // Your business
   business_name: string | null;

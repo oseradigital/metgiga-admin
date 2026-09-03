@@ -6,7 +6,7 @@ import type { OnboardingRecord, UnlinkedOnboardingRecord } from "@/lib/crm/onboa
 // crm), reachable here because both apps share one Supabase project —
 // no .schema("crm") call, unlike every other lib/crm/*.ts file.
 const ONBOARDING_COLUMNS = `
-  id, organisation_id, auth_user_id, access_token, created_at, updated_at, revoked_at, expires_at,
+  id, organisation_id, auth_user_id, access_token, created_at, updated_at, revoked_at, expires_at, onboarding_completed_at,
   business_name, legal_company_name, website, locations, contact_role, instagram_handle, tiktok_handle, other_social_channels,
   primary_contact_name, primary_contact_email, primary_contact_phone, contact_email_verified, compliance_contact, practitioners,
   decision_maker, enquiries_handled_by, content_approver, advertising_approver, urgent_contact, opening_hours,
@@ -81,14 +81,14 @@ export async function searchUnlinkedOnboardingRecords(query: string): Promise<Un
 }
 
 // "Completed" mirrors the exact signal the portal itself uses
-// (getOnboardingRecordByToken, lib/onboarding/queries.ts): auth_user_id
-// is set the moment agreement_status='signed' AND payment_confirmed are
-// both true, at which point the portal treats the pre-auth flow as over.
-// There's no separate completed_at column — after that point the portal
-// makes no further writes to the record (same source), so updated_at is
-// an accurate stand-in for "when", not a guess.
+// (getOnboardingRecordByToken, lib/onboarding/queries.ts):
+// onboarding_completed_at is set the moment agreement_status='signed'
+// AND payment_confirmed are both true, at which point the portal treats
+// the pre-auth flow as over. (It's set in the same write as
+// auth_user_id — see the portal's lib/onboarding/invite.ts — but the
+// timestamp is the authority; see supabase/migrations/0019.)
 export function isOnboardingComplete(record: OnboardingRecord): boolean {
-  return Boolean(record.auth_user_id);
+  return Boolean(record.onboarding_completed_at);
 }
 
 // A mechanical fields-filled count, not a fabricated "step 3 of 6" — the
