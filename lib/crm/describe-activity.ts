@@ -28,6 +28,8 @@ export function describeActivityEvent(
       // update happened to fire the trigger — very often the client's
       // own), so this deliberately doesn't use `actor`.
       return "Onboarding completed";
+    case "document.uploaded":
+      return `${actor} shared "${String(metadata.title ?? "a document")}"`;
     default:
       return `${actor} — ${eventType}`;
   }

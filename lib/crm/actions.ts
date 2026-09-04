@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveTeamMember } from "@/lib/supabase/team";
@@ -439,5 +440,107 @@ export async function setTaskStatus(id: string, status: "open" | "done"): Promis
 
   revalidatePath("/tasks");
   if (data?.deal_id) revalidatePath(`/deals/${data.deal_id}`);
+  return { ok: true };
+}
+
+// Storage write goes through the caller's own session (not a service
+// role) — enforced by storage.objects' team-only RLS policy, same
+// "authenticated + is_active_team_member()" gate as every other write
+// here. The file never touches a client-visible path; clients only ever
+// get one back via the portal's own signed-URL API route.
+export async function uploadClientDocument(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  await requireTeamMember();
+
+  const organisationId = String(formData.get("organisationId") || "");
+  const title = String(formData.get("title") || "").trim();
+  const file = formData.get("file");
+
+  if (!organisationId) return { ok: false, error: "Missing organisation." };
+  if (!title) return { ok: false, error: "Enter a title." };
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a file." };
+
+  const supabase = await createClient();
+
+  const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
+  const storagePath = `${organisationId}/${randomUUID()}${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("client-documents")
+    .upload(storagePath, file, { contentType: file.type || undefined });
+
+  if (uploadError) {
+    console.error("[uploadClientDocument:storage]", uploadError.message);
+    return { ok: false, error: "Couldn't upload this file. Try again." };
+  }
+
+  const { data, error } = await supabase
+    .schema("crm")
+    .from("client_documents")
+    .insert({
+      organisation_id: organisationId,
+      title,
+      storage_path: storagePath,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[uploadClientDocument:insert]", error.message);
+    // Clean up the now-orphaned storage object rather than leaving a
+    // file with no database row pointing at it.
+    await supabase.storage.from("client-documents").remove([storagePath]);
+    return { ok: false, error: "Couldn't save this document. Try again." };
+  }
+
+  // Client-visible activity, so the upload surfaces in the client's own
+  // Recent activity on Home — entity_type stays 'organisation' (the
+  // same shape 'onboarding.completed' already uses) rather than
+  // widening activity_events' entity_type check constraint for one
+  // call site. Not fatal if this fails — the document itself saved fine.
+  const { error: activityError } = await supabase.schema("crm").from("activity_events").insert({
+    organisation_id: organisationId,
+    event_type: "document.uploaded",
+    entity_type: "organisation",
+    entity_id: organisationId,
+    metadata: { title },
+  });
+  if (activityError) console.error("[uploadClientDocument:activity]", activityError.message);
+
+  revalidatePath(`/organisations/${organisationId}`);
+  return { ok: true, data: { id: data.id } };
+}
+
+export async function deleteClientDocument(id: string, organisationId: string): Promise<ActionResult> {
+  await requireTeamMember();
+
+  const supabase = await createClient();
+  const { data: doc, error: fetchError } = await supabase
+    .schema("crm")
+    .from("client_documents")
+    .select("storage_path")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fetchError || !doc) {
+    return { ok: false, error: "Couldn't find this document." };
+  }
+
+  const { error } = await supabase.schema("crm").from("client_documents").delete().eq("id", id);
+  if (error) {
+    console.error("[deleteClientDocument]", error.message);
+    return { ok: false, error: "Couldn't delete this document. Try again." };
+  }
+
+  // Deliberately after the row delete succeeds, not before — a dangling
+  // storage object with no row pointing at it is invisible and
+  // harmless; a row pointing at a missing file is a broken link a
+  // client could actually click.
+  const { error: storageError } = await supabase.storage.from("client-documents").remove([doc.storage_path]);
+  if (storageError) console.error("[deleteClientDocument:storage]", storageError.message);
+
+  revalidatePath(`/organisations/${organisationId}`);
   return { ok: true };
 }

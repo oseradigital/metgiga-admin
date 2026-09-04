@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-const TABS = ["Overview", "Contacts", "Deals", "Tasks", "Onboarding", "Activity"] as const;
+const TABS = ["Overview", "Contacts", "Deals", "Tasks", "Documents", "Onboarding", "Activity"] as const;
 export type Tab = (typeof TABS)[number];
 
 // All five panels are fetched and rendered server-side up front (the

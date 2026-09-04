@@ -4,6 +4,7 @@ import { getOrganisation } from "@/lib/crm/organisations";
 import { listContacts } from "@/lib/crm/contacts";
 import { listDealsForOrganisation } from "@/lib/crm/deals-for-org";
 import { listTasksForOrganisation } from "@/lib/crm/tasks";
+import { listDocumentsForOrganisation } from "@/lib/crm/documents";
 import { listActivityForOrganisation } from "@/lib/crm/activity";
 import { listDealStages } from "@/lib/crm/deals";
 import { listTeamMembers } from "@/lib/crm/team-members";
@@ -11,6 +12,7 @@ import { getOnboardingRecordForOrganisation } from "@/lib/crm/onboarding";
 import { OrganisationEditor } from "@/components/crm/OrganisationEditor";
 import { ContactsPanel } from "@/components/crm/ContactsPanel";
 import { TasksPanel } from "@/components/crm/TasksPanel";
+import { DocumentsPanel } from "@/components/crm/DocumentsPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { OnboardingPanel } from "@/components/crm/OnboardingPanel";
 import { OrganisationTabs, type Tab } from "@/components/crm/OrganisationTabs";
@@ -32,6 +34,7 @@ const TAB_PARAM: Record<string, Tab> = {
   contacts: "Contacts",
   deals: "Deals",
   tasks: "Tasks",
+  documents: "Documents",
   onboarding: "Onboarding",
   activity: "Activity",
 };
@@ -53,10 +56,11 @@ export default async function OrganisationDetailPage({
   // "you can't see it" to the caller).
   if (!organisation) notFound();
 
-  const [contacts, deals, tasks, activity, stages, teamMembers, onboardingRecord] = await Promise.all([
+  const [contacts, deals, tasks, documents, activity, stages, teamMembers, onboardingRecord] = await Promise.all([
     listContacts(id),
     listDealsForOrganisation(id),
     listTasksForOrganisation(id),
+    listDocumentsForOrganisation(id),
     listActivityForOrganisation(id),
     listDealStages(),
     listTeamMembers(),
@@ -136,6 +140,7 @@ export default async function OrganisationDetailPage({
           Tasks: (
             <TasksPanel organisationId={organisation.id} tasks={tasks} teamMembers={teamMembers} showDeal />
           ),
+          Documents: <DocumentsPanel organisationId={organisation.id} documents={documents} />,
           Onboarding: <OnboardingPanel organisationId={organisation.id} record={onboardingRecord} />,
           Activity: (
             <ActivityTimeline
