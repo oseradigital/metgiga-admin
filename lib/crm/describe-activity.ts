@@ -30,6 +30,11 @@ export function describeActivityEvent(
       return "Onboarding completed";
     case "document.uploaded":
       return `${actor} shared "${String(metadata.title ?? "a document")}"`;
+    case "client_request.submitted":
+      // actor is always null (crm.log_client_request_submitted logs it
+      // as system-generated on the client's insert, not attributed to
+      // a team member) — same reasoning as onboarding.completed above.
+      return `New request: "${String(metadata.subject ?? "")}"`;
     default:
       return `${actor} — ${eventType}`;
   }

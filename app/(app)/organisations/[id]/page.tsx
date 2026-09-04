@@ -5,6 +5,7 @@ import { listContacts } from "@/lib/crm/contacts";
 import { listDealsForOrganisation } from "@/lib/crm/deals-for-org";
 import { listTasksForOrganisation } from "@/lib/crm/tasks";
 import { listDocumentsForOrganisation } from "@/lib/crm/documents";
+import { listClientRequestsForOrganisation } from "@/lib/crm/requests";
 import { listActivityForOrganisation } from "@/lib/crm/activity";
 import { listDealStages } from "@/lib/crm/deals";
 import { listTeamMembers } from "@/lib/crm/team-members";
@@ -13,6 +14,7 @@ import { OrganisationEditor } from "@/components/crm/OrganisationEditor";
 import { ContactsPanel } from "@/components/crm/ContactsPanel";
 import { TasksPanel } from "@/components/crm/TasksPanel";
 import { DocumentsPanel } from "@/components/crm/DocumentsPanel";
+import { RequestsPanel } from "@/components/crm/RequestsPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { OnboardingPanel } from "@/components/crm/OnboardingPanel";
 import { OrganisationTabs, type Tab } from "@/components/crm/OrganisationTabs";
@@ -35,6 +37,7 @@ const TAB_PARAM: Record<string, Tab> = {
   deals: "Deals",
   tasks: "Tasks",
   documents: "Documents",
+  requests: "Requests",
   onboarding: "Onboarding",
   activity: "Activity",
 };
@@ -56,16 +59,18 @@ export default async function OrganisationDetailPage({
   // "you can't see it" to the caller).
   if (!organisation) notFound();
 
-  const [contacts, deals, tasks, documents, activity, stages, teamMembers, onboardingRecord] = await Promise.all([
-    listContacts(id),
-    listDealsForOrganisation(id),
-    listTasksForOrganisation(id),
-    listDocumentsForOrganisation(id),
-    listActivityForOrganisation(id),
-    listDealStages(),
-    listTeamMembers(),
-    getOnboardingRecordForOrganisation(id),
-  ]);
+  const [contacts, deals, tasks, documents, requests, activity, stages, teamMembers, onboardingRecord] =
+    await Promise.all([
+      listContacts(id),
+      listDealsForOrganisation(id),
+      listTasksForOrganisation(id),
+      listDocumentsForOrganisation(id),
+      listClientRequestsForOrganisation(id),
+      listActivityForOrganisation(id),
+      listDealStages(),
+      listTeamMembers(),
+      getOnboardingRecordForOrganisation(id),
+    ]);
 
   const primaryContact = contacts.find((c) => c.is_primary) ?? contacts[0];
   const primaryContactName = primaryContact ? [primaryContact.first_name, primaryContact.last_name].filter(Boolean).join(" ") : null;
@@ -141,6 +146,7 @@ export default async function OrganisationDetailPage({
             <TasksPanel organisationId={organisation.id} tasks={tasks} teamMembers={teamMembers} showDeal />
           ),
           Documents: <DocumentsPanel organisationId={organisation.id} documents={documents} />,
+          Requests: <RequestsPanel requests={requests} />,
           Onboarding: <OnboardingPanel organisationId={organisation.id} record={onboardingRecord} />,
           Activity: (
             <ActivityTimeline

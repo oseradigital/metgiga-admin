@@ -544,3 +544,37 @@ export async function deleteClientDocument(id: string, organisationId: string): 
   revalidatePath(`/organisations/${organisationId}`);
   return { ok: true };
 }
+
+// Team-only update — no client update policy exists on client_requests
+// at all (see 0022's comment), so this is the only way status/response
+// ever change. A response is optional: a team member can mark
+// "resolved" with nothing typed (e.g. "already handled on a call").
+export async function respondToClientRequest(
+  id: string,
+  organisationId: string,
+  input: { status: "open" | "in_progress" | "resolved"; response?: string },
+): Promise<ActionResult> {
+  await requireTeamMember();
+
+  // A blank response in this submission doesn't erase a previously
+  // saved one — status can be updated on its own (e.g. "in_progress"
+  // before there's anything to say yet) without touching response/
+  // responded_at at all.
+  const update: Record<string, string> = { status: input.status, updated_at: new Date().toISOString() };
+  if (input.response?.trim()) {
+    update.response = input.response.trim();
+    update.responded_at = new Date().toISOString();
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.schema("crm").from("client_requests").update(update).eq("id", id);
+
+  if (error) {
+    console.error("[respondToClientRequest]", error.message);
+    return { ok: false, error: "Couldn't update this request. Try again." };
+  }
+
+  revalidatePath("/requests");
+  revalidatePath(`/organisations/${organisationId}`);
+  return { ok: true };
+}
